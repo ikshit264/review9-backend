@@ -58,8 +58,8 @@ export class AuthController {
         // Set JWT token in HTTP-only cookie
         res.cookie('accessToken', result.accessToken, {
             httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'lax',
+            secure: true, // MUST be true for SameSite=None
+            sameSite: 'none',
             maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
         });
 
@@ -91,8 +91,8 @@ export class AuthController {
         // Clear the cookie
         res.clearCookie('accessToken', {
             httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'lax',
+            secure: true,
+            sameSite: 'none',
         });
 
         return { message: 'Logged out successfully' };
