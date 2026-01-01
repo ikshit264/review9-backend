@@ -99,12 +99,6 @@ export class JobsService {
         const jobs = await this.prisma.job.findMany({
             where: { companyId: userId },
             include: {
-                candidates: true,
-                sessions: {
-                    include: {
-                        candidate: { select: { email: true } }
-                    }
-                },
                 _count: {
                     select: { candidates: true, sessions: true },
                 },
@@ -114,10 +108,9 @@ export class JobsService {
 
         return jobs.map(job => ({
             ...job,
-            candidates: job.candidates.map(candidate => {
-                const session = job.sessions.find(s => s.candidate.email === candidate.email);
-                return this.mapCandidateWithSession(candidate, session);
-            })
+            candidateCount: job._count.candidates,
+            sessionCount: job._count.sessions,
+            candidates: [] // Emulating empty for compatibility or just remove dependency
         }));
     }
 
@@ -125,27 +118,17 @@ export class JobsService {
         const job = await this.prisma.job.findFirst({
             where: { id: jobId, companyId: userId },
             include: {
-                candidates: true,
-                sessions: {
-                    include: {
-                        evaluation: true,
-                        candidate: { select: { id: true, email: true } }
-                    },
-                },
-            },
+                _count: {
+                    select: { candidates: true, sessions: true }
+                }
+            }
         });
 
         if (!job) {
             throw new NotFoundException('Job not found');
         }
 
-        return {
-            ...job,
-            candidates: job.candidates.map(candidate => {
-                const session = job.sessions.find(s => s.candidate.email === candidate.email);
-                return this.mapCandidateWithSession(candidate, session);
-            })
-        };
+        return job;
     }
 
     async inviteCandidates(jobId: string, userId: string, userPlan: Plan, dto: InviteCandidatesDto) {
