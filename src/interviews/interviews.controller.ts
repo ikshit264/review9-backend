@@ -15,7 +15,10 @@ export class InterviewsController {
     ) { }
 
     @Get('test-me')
-    async getTestSession(@Query('plan') plan?: Plan) {
+    async getTestSession(
+        @Query('plan') plan: Plan | undefined,
+        @Res({ passthrough: true }) res: Response
+    ) {
         const { session, user, candidate } = await this.interviewsService.getOrCreateTestEnvironment(plan);
 
         // Generate JWT bypass
@@ -27,8 +30,15 @@ export class InterviewsController {
         };
         const accessToken = this.jwtService.sign(payload);
 
+        // Set JWT token in HTTP-only cookie
+        res.cookie('accessToken', accessToken, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'lax',
+            maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+        });
+
         return {
-            accessToken,
             sessionId: session.id,
             user,
             candidate,

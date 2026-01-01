@@ -98,7 +98,7 @@ export class AuthController {
         return { message: 'Logged out successfully' };
     }
 
-    @Get('detect-timezone')
+    @Post('detect-timezone')
     async detectTimezone(@Body('ip') ip?: string) {
         return this.authService.detectTimezone(ip);
     }
