@@ -1,7 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
-import { env } from 'process';
 import cookieParser from 'cookie-parser';
 
 async function bootstrap() {
@@ -9,10 +8,26 @@ async function bootstrap() {
 
   app.setGlobalPrefix('api');
   app.use(cookieParser());
+
+  // Parse allowed origins from env (comma-separated)
+  const allowedOrigins = process.env.ALLOWED_ORIGINS
+    ? process.env.ALLOWED_ORIGINS.split(',').map(origin => origin.trim())
+    : ['http://localhost:3000'];
+
   app.enableCors({
-    origin: process.env.APP_URL || 'http://localhost:3000',
+    origin: (origin, callback) => {
+      // Allow requests with no origin (mobile apps, Postman, etc.)
+      if (!origin) return callback(null, true);
+
+      if (allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error(`Origin ${origin} not allowed by CORS`));
+      }
+    },
     credentials: true,
   });
+
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -21,10 +36,11 @@ async function bootstrap() {
     }),
   );
 
-  const port = process.env.PORT || 3001;
-  await app.listen(port);
-  console.log('🔍 DEBUG: GEMINI_API_KEY =', env.NEST_GEMINI_API_KEY);
+  const port = Number(process.env.PORT) || 3000;
+
+  await app.listen(port, '0.0.0.0'); // 🔥 REQUIRED FOR RENDER
 
   console.log(`🚀 HireAI Backend running on port ${port}`);
 }
+
 bootstrap();
