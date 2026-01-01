@@ -1,0 +1,189 @@
+// schema.prisma
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  COMPANY
+  CANDIDATE
+}
+
+enum Plan {
+  FREE
+  PRO
+  ULTRA
+}
+
+enum Status {
+  PENDING
+  ONGOING
+  PAUSED
+  COMPLETED
+  FAILED
+}
+
+enum CandidateStatus {
+  PENDING // Candidate added, email NOT sent
+  INVITED // Email sent, awaiting interview
+  REVIEW // Interview done, awaiting decision
+  REJECTED // Not suitable
+  CONSIDERED // Under consideration
+  SHORTLISTED // Top candidate
+  EXPIRED // Missed the interview window
+}
+
+model User {
+  id                 String   @id @default(uuid())
+  email              String   @unique
+  password           String
+  name               String
+  role               Role
+  plan               Plan? // Only for COMPANY users, null for CANDIDATE
+  activeSessionToken String?
+  bio                String?  @db.Text
+  location           String?
+  phone              String?
+  timezone           String?  @default("UTC")
+  isProfileComplete  Boolean  @default(false)
+  resumeUrl          String?
+  workExperience     Json?
+  skills             String[] @default([])
+  createdAt          DateTime @default(now())
+
+  jobs          Job[]
+  interviews    InterviewSession[]
+  notifications Notification[]
+}
+
+model Job {
+  id                 String   @id @default(uuid())
+  title              String
+  roleCategory       String
+  description        String   @db.Text
+  notes              String?  @db.Text
+  companyId          String
+  company            User     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  interviewStartTime DateTime
+  interviewEndTime   DateTime
+  planAtCreation     Plan
+
+  tabTracking        Boolean @default(true)
+  eyeTracking        Boolean @default(false)
+  multiFaceDetection Boolean @default(false)
+  screenRecording    Boolean @default(false)
+  fullScreenMode     Boolean @default(false)
+  videoRequired      Boolean @default(true)
+  micRequired        Boolean @default(true)
+  noTextTyping       Boolean @default(false)
+  timezone           String  @default("UTC")
+
+  customQuestions        String[] @default([])
+  aiSpecificRequirements String?  @db.Text
+
+  candidates Candidate[]
+  sessions   InterviewSession[]
+  createdAt  DateTime           @default(now())
+}
+
+model Candidate {
+  id                 String          @id @default(uuid())
+  jobId              String
+  job                Job             @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  name               String
+  email              String
+  status             CandidateStatus @default(PENDING)
+  resumeText         String?         @db.Text
+  interviewLink      String          @unique
+  invitedAt          DateTime?
+  interviewStartTime DateTime?
+  interviewEndTime   DateTime?
+  isReInterviewed    Boolean         @default(false)
+  createdAt          DateTime        @default(now())
+
+  @@unique([jobId, email])
+}
+
+model InterviewSession {
+  id               String    @id @default(uuid())
+  candidateId      String
+  candidate        User      @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  jobId            String
+  job              Job       @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  startTime        DateTime  @default(now())
+  endTime          DateTime?
+  status           Status    @default(ONGOING)
+  hasStarted       Boolean   @default(false)
+  malpracticeCount Int       @default(0)
+  warningCount     Int       @default(0)
+  isInterrupted    Boolean   @default(false)
+  isFlagged        Boolean   @default(false)
+  overallScore     Int?
+
+  responses      InterviewResponse[]
+  proctoringLogs ProctoringLog[]
+  evaluation     FinalEvaluation?
+}
+
+model InterviewResponse {
+  id               String           @id @default(uuid())
+  sessionId        String
+  session          InterviewSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  questionText     String           @db.Text
+  candidateAnswer  String           @db.Text
+  aiAcknowledgment String?          @db.Text
+  techScore        Int?
+  commScore        Int?
+  overfitScore     Int?
+  aiFlagged        Boolean?         @default(false)
+  turnFeedback     String?          @db.Text
+  timestamp        DateTime         @default(now())
+}
+
+model ProctoringLog {
+  id        String           @id @default(uuid())
+  sessionId String
+  session   InterviewSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  type      String
+  severity  String
+  timestamp DateTime         @default(now())
+}
+
+model FinalEvaluation {
+  id             String           @id @default(uuid())
+  sessionId      String           @unique
+  session        InterviewSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  overallScore   Int
+  isFit          Boolean
+  reasoning      String           @db.Text
+  behavioralNote String?          @db.Text
+  metrics        Json
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  type      NotificationType @default(INAPP)
+  title     String
+  message   String
+  read      Boolean          @default(false)
+  link      String?
+  email     String
+  createdAt DateTime         @default(now())
+
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([email])
+  @@index([email, userId])
+}
+
+enum NotificationType {
+  INAPP
+  EMAIL
+  SYSTEM
+}
