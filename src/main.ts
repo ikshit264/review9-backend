@@ -36,11 +36,9 @@ async function bootstrap() {
     }),
   );
 
-  const port = Number(process.env.PORT) || 3000;
+  await app.listen(Number(process.env.PORT) || 3000, '0.0.0.0'); // 🔥 REQUIRED FOR RENDER
 
-  await app.listen(port, '0.0.0.0'); // 🔥 REQUIRED FOR RENDER
-
-  console.log(`🚀 HireAI Backend running on port ${port}`);
+  console.log(`🚀 HireAI Backend running on port ${Number(process.env.PORT) || 3000}`);
 }
 
 bootstrap();
