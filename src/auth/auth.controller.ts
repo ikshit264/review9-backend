@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Put, Body, UseGuards, HttpCode, HttpStatus, Res } from '@nestjs/common';
+import { Controller, Post, Get, Put, Body, UseGuards, HttpCode, HttpStatus, Res, Query } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { RegisterDto, LoginDto } from './dto';
 import { JwtAuthGuard } from './guards';
@@ -69,8 +69,12 @@ export class AuthController {
 
     @Get('me')
     @UseGuards(JwtAuthGuard)
-    async getProfile(@CurrentUser('id') userId: string) {
-        return this.authService.getProfile(userId);
+    async getProfile(
+        @CurrentUser() user: any,
+        @Query('userId') userId?: string
+    ) {
+        const id = (user.role === 'ADMIN' && userId) ? userId : user.id;
+        return this.authService.getProfile(id);
     }
 
     @Put('profile')
@@ -101,5 +105,22 @@ export class AuthController {
     @Post('detect-timezone')
     async detectTimezone(@Body('ip') ip?: string) {
         return this.authService.detectTimezone(ip);
+    }
+
+
+    @Post('verify-link')
+    @HttpCode(HttpStatus.OK)
+    async verifyLink(@Body('token') token: string, @Res({ passthrough: true }) res: Response) {
+        const result = await this.authService.verifyMagicLink(token);
+
+        // Set JWT token in HTTP-only cookie
+        res.cookie('accessToken', result.accessToken, {
+            httpOnly: true,
+            secure: true,
+            sameSite: 'none',
+            maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+        });
+
+        return { user: result.user };
     }
 }

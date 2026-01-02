@@ -5,6 +5,8 @@ import { Prisma } from '@prisma/client';
 import { RegisterDto, LoginDto } from './dto';
 import * as bcrypt from 'bcrypt';
 import { v4 as uuidv4 } from 'uuid';
+import { ConfigService } from '@nestjs/config';
+import { ApprovalStatus, Role } from '@prisma/client';
 
 import { GeolocationService } from '../common/geolocation.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -16,6 +18,7 @@ export class AuthService {
         private jwtService: JwtService,
         private geoService: GeolocationService,
         private notificationsService: NotificationsService,
+        private configService: ConfigService,
     ) { }
 
     async register(dto: RegisterDto) {
@@ -28,15 +31,35 @@ export class AuthService {
         }
 
         const hashedPassword = await bcrypt.hash(dto.password, 10);
+        const token = uuidv4();
+        const expires = new Date();
+        expires.setHours(expires.getHours() + 24);
+
         const user = await this.prisma.user.create({
             data: {
                 email: dto.email,
                 password: hashedPassword,
                 name: dto.name,
                 role: dto.role,
-                plan: dto.role === 'COMPANY' ? 'FREE' : null, // Only companies get plans
+                plan: dto.role === 'COMPANY' ? 'FREE' : null,
+                approvalStatus: dto.role === 'COMPANY' ? ApprovalStatus.PENDING : ApprovalStatus.APPROVED,
+                isEmailVerified: false,
+                verificationToken: dto.role === 'CANDIDATE' ? token : null,
+                verificationTokenExpires: dto.role === 'CANDIDATE' ? expires : null,
             },
         });
+
+        if (dto.role === 'CANDIDATE') {
+            const appUrl = this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3000';
+            const verificationLink = `${appUrl}/verify?token=${token}`;
+
+            await this.notificationsService.createForEmail(user.email, {
+                type: 'EMAIL',
+                title: 'Verify Your HireAI Account',
+                message: `Welcome to HireAI! Please click the link below to verify your email and complete your registration.`,
+                link: verificationLink,
+            });
+        }
 
         await this.notificationsService.attachNotificationsToUser(user.email, user.id);
 
@@ -45,6 +68,41 @@ export class AuthService {
     }
 
     async login(dto: LoginDto) {
+        // Handle Admin Login
+        const adminEmail = this.configService.get<string>('ADMIN_EMAIL') || 'review9gmail.com';
+        const adminPassword = this.configService.get<string>('ADMIN_PASSWORD') || 'review9gmail.com';
+
+        if (dto.email === adminEmail && dto.password === adminPassword) {
+            let adminUser = await this.prisma.user.findUnique({
+                where: { email: adminEmail },
+            });
+
+            if (!adminUser) {
+                // Create admin user if it doesn't exist
+                const hashedPass = await bcrypt.hash(adminPassword, 10);
+                adminUser = await this.prisma.user.create({
+                    data: {
+                        email: adminEmail,
+                        password: hashedPass,
+                        name: 'System Admin',
+                        role: Role.ADMIN,
+                        approvalStatus: ApprovalStatus.APPROVED,
+                    }
+                });
+            }
+
+            const sessionToken = uuidv4();
+            await this.prisma.user.update({
+                where: { id: adminUser.id },
+                data: { activeSessionToken: sessionToken },
+            });
+
+            const payload = { sub: adminUser.id, email: adminUser.email, role: Role.ADMIN, sessionToken };
+            const accessToken = this.jwtService.sign(payload);
+            const { password, ...userData } = adminUser;
+            return { accessToken, user: userData };
+        }
+
         const user = await this.prisma.user.findUnique({
             where: { email: dto.email },
             select: {
@@ -63,6 +121,8 @@ export class AuthService {
                 workExperience: true,
                 skills: true,
                 createdAt: true,
+                approvalStatus: true,
+                isEmailVerified: true,
             },
         });
 
@@ -73,6 +133,14 @@ export class AuthService {
         const passwordValid = await bcrypt.compare(dto.password, user.password);
         if (!passwordValid) {
             throw new UnauthorizedException('Invalid credentials');
+        }
+
+        if (!user.isEmailVerified) {
+            throw new UnauthorizedException('Please verify your email to access your account. Check your inbox for the verification link.');
+        }
+
+        if (user.role === 'COMPANY' && user.approvalStatus !== ApprovalStatus.APPROVED) {
+            throw new UnauthorizedException('Your account is pending approval. Please contact the administrator.');
         }
 
         const sessionToken = uuidv4();
@@ -173,6 +241,7 @@ export class AuthService {
             }
         } else {
             console.log('[Auth] isProfileComplete explicitly provided:', data.isProfileComplete);
+            updateData.isProfileComplete = data.isProfileComplete;
         }
         // If isProfileComplete is explicitly set (true or false), it's already in updateData
 
@@ -241,5 +310,39 @@ export class AuthService {
 
     async detectTimezone(ip?: string) {
         return this.geoService.getTimezoneFromIp(ip);
+    }
+
+
+    async verifyMagicLink(token: string) {
+        const user = await this.prisma.user.findFirst({
+            where: {
+                verificationToken: token,
+                verificationTokenExpires: {
+                    gt: new Date(),
+                },
+            },
+        });
+
+        if (!user) {
+            throw new UnauthorizedException('Invalid or expired token.');
+        }
+
+        const sessionToken = uuidv4();
+        const updatedUser = await this.prisma.user.update({
+            where: { id: user.id },
+            data: {
+                verificationToken: null,
+                verificationTokenExpires: null,
+                activeSessionToken: sessionToken,
+                isEmailVerified: true,
+                approvalStatus: ApprovalStatus.APPROVED, // Activate if it was pending
+            },
+        });
+
+        const payload = { sub: updatedUser.id, email: updatedUser.email, role: updatedUser.role, sessionToken };
+        const accessToken = this.jwtService.sign(payload);
+
+        const { password, ...userData } = updatedUser;
+        return { accessToken, user: userData };
     }
 }

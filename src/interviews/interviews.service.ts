@@ -29,7 +29,7 @@ export class InterviewsService {
     private geminiService: GeminiService,
     private notificationsService: NotificationsService,
     private timeWindowService: TimeWindowService,
-  ) {}
+  ) { }
 
   async getInterviewByToken(token: string) {
     this.logger.log(`Searching for candidate with token: ${token}`);
@@ -393,7 +393,7 @@ export class InterviewsService {
     return updatedSession;
   }
 
-  async resumeInterview(sessionId: string, userId: string) {
+  async resumeInterview(sessionId: string, userId: string, requesterRole?: Role) {
     const session = await this.prisma.interviewSession.findUnique({
       where: { id: sessionId },
       include: { job: true },
@@ -401,8 +401,8 @@ export class InterviewsService {
 
     if (!session) throw new NotFoundException('Session not found');
 
-    // Verify company ownership
-    if (session.job.companyId !== userId) {
+    // Verify company ownership (Bypassed for ADMIN)
+    if (requesterRole !== Role.ADMIN && session.job.companyId !== userId) {
       throw new ForbiddenException(
         'Only the company can resume this interview',
       );
@@ -913,9 +913,9 @@ export class InterviewsService {
       },
       candidate: session.candidate
         ? {
-            name: session.candidate.name,
-            email: session.candidate.email,
-          }
+          name: session.candidate.name,
+          email: session.candidate.email,
+        }
         : null,
       responses: session.responses.map((r) => ({
         id: r.id,

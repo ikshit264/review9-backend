@@ -7,6 +7,13 @@ import { CurrentUser, Roles } from '../auth/decorators';
 import { Role, Plan } from '@prisma/client';
 import { Response } from 'express';
 
+interface AuthUser {
+    id: string;
+    email: string;
+    role: Role;
+    plan?: Plan;
+}
+
 @Controller('interviews')
 export class InterviewsController {
     constructor(
@@ -66,7 +73,10 @@ export class InterviewsController {
 
     @Get(':id')
     @UseGuards(JwtAuthGuard)
-    async getSession(@Param('id') sessionId: string) {
+    async getSession(
+        @Param('id') sessionId: string,
+        @Query('companyId') companyId?: string
+    ) {
         return this.interviewsService.getInterviewSession(sessionId);
     }
 
@@ -120,9 +130,11 @@ export class InterviewsController {
     @Roles(Role.COMPANY)
     async resumeInterview(
         @Param('id') sessionId: string,
-        @CurrentUser('id') userId: string,
+        @CurrentUser() user: AuthUser,
+        @Query('companyId') companyId?: string
     ) {
-        return this.interviewsService.resumeInterview(sessionId, userId);
+        const targetId = (user.role === Role.ADMIN && companyId) ? companyId : user.id;
+        return this.interviewsService.resumeInterview(sessionId, targetId, user.role);
     }
 
     @Post(':id/acknowledge-warning')
@@ -161,13 +173,19 @@ export class InterviewsController {
 
     @Get(':id/evaluation')
     @UseGuards(JwtAuthGuard)
-    async getEvaluation(@Param('id') sessionId: string) {
+    async getEvaluation(
+        @Param('id') sessionId: string,
+        @Query('companyId') companyId?: string
+    ) {
         return this.interviewsService.getEvaluation(sessionId);
     }
 
     @Get(':id/report')
     @UseGuards(JwtAuthGuard)
-    async getSessionReport(@Param('id') sessionId: string) {
+    async getSessionReport(
+        @Param('id') sessionId: string,
+        @Query('companyId') companyId?: string
+    ) {
         return this.interviewsService.getSessionReport(sessionId);
     }
 }

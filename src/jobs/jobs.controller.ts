@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Put, Patch, Body, Param, UseGuards } from '@nestjs/common';
+import { Controller, Post, Get, Put, Patch, Body, Param, UseGuards, Query } from '@nestjs/common';
 import { JobsService } from './jobs.service';
 import { CreateJobDto, InviteCandidatesDto, UpdateJobDto, UpdateCandidateStatusDto } from './dto';
 import { JwtAuthGuard, RolesGuard } from '../auth/guards';
@@ -19,20 +19,34 @@ export class JobsController {
 
     @Post()
     @Roles(Role.COMPANY)
-    async createJob(@CurrentUser() user: AuthUser, @Body() dto: CreateJobDto) {
-        return this.jobsService.createJob(user.id, user.plan || Plan.FREE, dto);
+    async createJob(
+        @CurrentUser() user: AuthUser,
+        @Body() dto: CreateJobDto,
+        @Query('companyId') companyId?: string
+    ) {
+        const targetId = (user.role === Role.ADMIN && companyId) ? companyId : user.id;
+        return this.jobsService.createJob(targetId, user.plan || Plan.FREE, dto);
     }
 
     @Get()
     @Roles(Role.COMPANY)
-    async getJobs(@CurrentUser('id') userId: string) {
-        return this.jobsService.getJobs(userId);
+    async getJobs(
+        @CurrentUser() user: AuthUser,
+        @Query('companyId') companyId?: string
+    ) {
+        const targetId = (user.role === Role.ADMIN && companyId) ? companyId : user.id;
+        return this.jobsService.getJobs(targetId, user.role);
     }
 
     @Get(':id')
     @Roles(Role.COMPANY)
-    async getJob(@Param('id') jobId: string, @CurrentUser('id') userId: string) {
-        return this.jobsService.getJobById(jobId, userId);
+    async getJob(
+        @Param('id') jobId: string,
+        @CurrentUser() user: AuthUser,
+        @Query('companyId') companyId?: string
+    ) {
+        const targetId = (user.role === Role.ADMIN && companyId) ? companyId : user.id;
+        return this.jobsService.getJobById(jobId, targetId, user.role);
     }
 
     @Put(':id')
@@ -41,8 +55,10 @@ export class JobsController {
         @Param('id') jobId: string,
         @CurrentUser() user: AuthUser,
         @Body() dto: UpdateJobDto,
+        @Query('companyId') companyId?: string
     ) {
-        return this.jobsService.updateJob(jobId, user.id, user.plan || Plan.FREE, dto);
+        const targetId = (user.role === Role.ADMIN && companyId) ? companyId : user.id;
+        return this.jobsService.updateJob(jobId, targetId, user.plan || Plan.FREE, dto, user.role);
     }
 
     @Post(':id/candidates')
@@ -51,32 +67,43 @@ export class JobsController {
         @Param('id') jobId: string,
         @CurrentUser() user: AuthUser,
         @Body() dto: InviteCandidatesDto,
+        @Query('companyId') companyId?: string
     ) {
-        return this.jobsService.inviteCandidates(jobId, user.id, user.plan || Plan.FREE, dto);
+        const targetId = (user.role === Role.ADMIN && companyId) ? companyId : user.id;
+        return this.jobsService.inviteCandidates(jobId, targetId, user.plan || Plan.FREE, dto, user.role);
     }
 
     @Get(':id/candidates')
     @Roles(Role.COMPANY)
     async getJobCandidates(
         @Param('id') jobId: string,
-        @CurrentUser('id') userId: string,
+        @CurrentUser() user: AuthUser,
+        @Query('companyId') companyId?: string
     ) {
-        return this.jobsService.getJobCandidates(jobId, userId);
+        const targetId = (user.role === Role.ADMIN && companyId) ? companyId : user.id;
+        return this.jobsService.getJobCandidates(jobId, targetId, user.role);
     }
 
     @Get(':id/analytics')
     @Roles(Role.COMPANY)
-    async getAnalytics(@Param('id') jobId: string, @CurrentUser('id') userId: string) {
-        return this.jobsService.getJobAnalytics(jobId, userId);
+    async getAnalytics(
+        @Param('id') jobId: string,
+        @CurrentUser() user: AuthUser,
+        @Query('companyId') companyId?: string
+    ) {
+        const targetId = (user.role === Role.ADMIN && companyId) ? companyId : user.id;
+        return this.jobsService.getJobAnalytics(jobId, targetId, user.role);
     }
 
     @Get(':id/invitation-progress')
     @Roles(Role.COMPANY)
     async getInvitationProgress(
         @Param('id') jobId: string,
-        @CurrentUser('id') userId: string,
+        @CurrentUser() user: AuthUser,
+        @Query('companyId') companyId?: string
     ) {
-        return this.jobsService.getInvitationProgress(jobId, userId);
+        const targetId = (user.role === Role.ADMIN && companyId) ? companyId : user.id;
+        return this.jobsService.getInvitationProgress(jobId, targetId);
     }
 }
 
@@ -89,31 +116,34 @@ export class CandidatesController {
     @Roles(Role.COMPANY)
     async updateStatus(
         @Param('id') candidateId: string,
-        @CurrentUser('id') userId: string,
+        @CurrentUser() user: AuthUser,
         @Body() dto: UpdateCandidateStatusDto,
+        @Query('companyId') companyId?: string
     ) {
-        return this.jobsService.updateCandidateStatus(candidateId, userId, dto.status);
+        const targetId = (user.role === Role.ADMIN && companyId) ? companyId : user.id;
+        return this.jobsService.updateCandidateStatus(candidateId, targetId, dto.status, user.role);
     }
 
     @Patch(':id/resume')
     @UseGuards(JwtAuthGuard)
     async updateResume(
         @Param('id') candidateId: string,
-        @CurrentUser('id') userId: string,
+        @CurrentUser() user: AuthUser,
         @Body('resumeText') resumeText: string,
     ) {
-        // Verify the candidate belongs to the authenticated user
-        return this.jobsService.updateCandidateResume(candidateId, resumeText, userId);
+        return this.jobsService.updateCandidateResume(candidateId, resumeText, user.id, user.role);
     }
 
     @Post(':id/re-interview')
     @Roles(Role.COMPANY)
     async reInterview(
         @Param('id') candidateId: string,
-        @CurrentUser('id') userId: string,
+        @CurrentUser() user: AuthUser,
         @Body('newScheduledTime') newScheduledTime?: string,
+        @Query('companyId') companyId?: string
     ) {
-        return this.jobsService.reInterviewCandidate(candidateId, userId, newScheduledTime);
+        const targetId = (user.role === Role.ADMIN && companyId) ? companyId : user.id;
+        return this.jobsService.reInterviewCandidate(candidateId, targetId, newScheduledTime, user.role);
     }
 }
 @Controller('companies')

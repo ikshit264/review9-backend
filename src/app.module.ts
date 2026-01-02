@@ -9,6 +9,7 @@ import { BillingModule } from './billing/billing.module';
 import { UploadModule } from './upload/upload.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { EmailModule } from './email/email.module';
+import { AdminModule } from './admin/admin.module';
 
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
@@ -31,6 +32,7 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
     BillingModule,
     UploadModule,
     NotificationsModule,
+    AdminModule,
   ],
   providers: [
     {

@@ -12,12 +12,19 @@ generator client {
 enum Role {
   COMPANY
   CANDIDATE
+  ADMIN
 }
 
 enum Plan {
   FREE
   PRO
   ULTRA
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 enum Status {
@@ -56,6 +63,12 @@ model User {
   workExperience     Json?
   skills             String[] @default([])
   createdAt          DateTime @default(now())
+
+  // New fields for Admin Approval and Magic Link
+  approvalStatus           ApprovalStatus @default(APPROVED)
+  isEmailVerified          Boolean        @default(false)
+  verificationToken        String?        @unique
+  verificationTokenExpires DateTime?
 
   jobs          Job[]
   interviews    InterviewSession[]
