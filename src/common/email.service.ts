@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
 
@@ -14,6 +14,7 @@ interface InviteEmailData {
 
 @Injectable()
 export class EmailService {
+  private readonly logger = new Logger(EmailService.name);
   private transporter: nodemailer.Transporter;
 
   constructor(private configService: ConfigService) {
@@ -86,33 +87,34 @@ export class EmailService {
       html,
     };
 
-    console.log('--- EMAIL DATA START ---');
-    console.log(`To: ${mailData.to}`);
-    console.log(`Subject: ${mailData.subject}`);
-    console.log(`Candidate: ${data.candidateName}`);
-    console.log(`Job: ${data.jobTitle}`);
-    console.log(`Company: ${data.companyName}`);
-    console.log(`Scheduled Time: ${formattedTime}`);
-    console.log(`Link: ${data.interviewLink}`);
-    console.log('--- EMAIL DATA END ---');
+    this.logger.log(`Preparing to send interview invitation email to ${data.to}`);
 
     try {
       const mailEnabled = this.configService.get<string>('MAIL_ENABLED') !== 'false';
 
       if (!mailEnabled) {
-        console.log(`[EmailService] Mail disabled (MAIL_ENABLED=false). Invitation to ${data.to} log-only.`);
+        this.logger.warn(`Mail disabled (MAIL_ENABLED=false). Invitation to ${data.to} log-only.`);
         return;
       }
 
       await this.transporter.sendMail(mailData);
-      console.log(`[EmailService] Invitation sent to ${data.to}`);
-    } catch (error: any) {
-      if (error.response && error.response.includes('Maximum credits exceeded')) {
-        console.warn(`[EmailService] FAILED: Email quota reached (451). skipping email to ${data.to}. Note: Use in-app notifications instead.`);
+      this.logger.log(`Successfully sent interview invitation email to ${data.to}`);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Failed to send interview invitation email to ${data.to}:`, errorMessage);
+      
+      // Throw error for critical email failures
+      if (error && typeof error === 'object' && 'response' in error && 
+          typeof error.response === 'string' && error.response.includes('Maximum credits exceeded')) {
+        throw new InternalServerErrorException(
+          `Email service quota exceeded. Failed to send invitation to ${data.to}. Please contact support.`
+        );
       } else {
-        console.error('[EmailService] Failed to send email:', error.message || error);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        throw new InternalServerErrorException(
+          `Failed to send interview invitation email to ${data.to}. Error: ${errorMessage}`
+        );
       }
-      // Don't throw - email failure shouldn't block the flow
     }
   }
 }

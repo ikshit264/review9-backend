@@ -96,12 +96,14 @@ export class CandidatesController {
     }
 
     @Patch(':id/resume')
+    @UseGuards(JwtAuthGuard)
     async updateResume(
         @Param('id') candidateId: string,
+        @CurrentUser('id') userId: string,
         @Body('resumeText') resumeText: string,
     ) {
-        // This can be public or candidate role, but for now we'll allow it if they have the candidate ID
-        return this.jobsService.updateCandidateResume(candidateId, resumeText);
+        // Verify the candidate belongs to the authenticated user
+        return this.jobsService.updateCandidateResume(candidateId, resumeText, userId);
     }
 
     @Post(':id/re-interview')

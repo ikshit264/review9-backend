@@ -1,6 +1,7 @@
 import { Injectable, UnauthorizedException, ConflictException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
+import { Prisma } from '@prisma/client';
 import { RegisterDto, LoginDto } from './dto';
 import * as bcrypt from 'bcrypt';
 import { v4 as uuidv4 } from 'uuid';
@@ -123,11 +124,41 @@ export class AuthService {
         return user;
     }
 
-    async updateProfile(userId: string, data: any) {
+    async updateProfile(userId: string, data: {
+        name?: string;
+        bio?: string;
+        location?: string;
+        phone?: string;
+        timezone?: string;
+        resumeUrl?: string;
+        workExperience?: Record<string, unknown> | unknown[];
+        skills?: string[];
+        isProfileComplete?: boolean;
+    }) {
         console.log('[Auth] updateProfile called for user:', userId);
         console.log('[Auth] Received data:', JSON.stringify(data, null, 2));
 
-        const updateData: any = { ...data };
+        const updateData: {
+            name?: string;
+            bio?: string;
+            location?: string;
+            phone?: string;
+            timezone?: string;
+            resumeUrl?: string;
+            workExperience?: Prisma.InputJsonValue;
+            skills?: string[];
+            isProfileComplete?: boolean;
+        } = {};
+
+        // Selectively assign properties to avoid type conflicts
+        if (data.name !== undefined) updateData.name = data.name;
+        if (data.bio !== undefined) updateData.bio = data.bio;
+        if (data.location !== undefined) updateData.location = data.location;
+        if (data.phone !== undefined) updateData.phone = data.phone;
+        if (data.timezone !== undefined) updateData.timezone = data.timezone;
+        if (data.resumeUrl !== undefined) updateData.resumeUrl = data.resumeUrl;
+        if (data.workExperience !== undefined) updateData.workExperience = data.workExperience as Prisma.InputJsonValue;
+        if (data.skills !== undefined) updateData.skills = data.skills;
 
         // If isProfileComplete is explicitly provided, use it
         // Otherwise, auto-complete if all mandatory fields are present

@@ -1,15 +1,17 @@
-import { Injectable, ForbiddenException, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, ForbiddenException, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { CreateJobDto, InviteCandidatesDto } from './dto';
-import { Plan, Role, CandidateStatus } from '@prisma/client';
+import { CreateJobDto, InviteCandidatesDto, UpdateJobDto } from './dto';
+import { Plan, Role, CandidateStatus, Status, Prisma } from '@prisma/client';
 import { v4 as uuidv4 } from 'uuid';
 import { EmailService } from '../common/email.service';
 import { ConfigService } from '@nestjs/config';
 import { NotificationsService } from '../notifications/notifications.service';
-import { NotificationType } from '@prisma/client'
+import { NotificationType } from '@prisma/client';
+import { TimeWindowService } from '../common/time-window.service';
 
 @Injectable()
 export class JobsService {
+    private readonly logger = new Logger(JobsService.name);
     // In-memory progress tracking for invitation sending
     private invitationProgress = new Map<string, {
         total: number;
@@ -29,6 +31,7 @@ export class JobsService {
         private emailService: EmailService,
         private configService: ConfigService,
         private notificationsService: NotificationsService,
+        private timeWindowService: TimeWindowService,
     ) { }
 
     async createJob(userId: string, userPlan: Plan, dto: CreateJobDto) {
@@ -60,7 +63,6 @@ export class JobsService {
             tabTracking: dto.tabTracking ?? true,
             eyeTracking: dto.eyeTracking ?? false,
             multiFaceDetection: dto.multiFaceDetection ?? false,
-            screenRecording: dto.screenRecording ?? false,
             fullScreenMode: dto.fullScreenMode ?? false,
             noTextTyping: dto.noTextTyping ?? false,
         };
@@ -68,7 +70,6 @@ export class JobsService {
         if (userPlan === Plan.FREE) {
             jobSettings.eyeTracking = false;
             jobSettings.multiFaceDetection = false;
-            jobSettings.screenRecording = false;
         }
 
         if (userPlan === Plan.PRO) {
@@ -180,7 +181,7 @@ export class JobsService {
         userId: string,
         userPlan: Plan,
         dto: InviteCandidatesDto,
-        job: any,
+        job: Prisma.JobGetPayload<{ include: { company: true } }>,
         progressKey: string,
     ) {
         const appUrl = this.configService.get<string>('APP_URL');
@@ -258,11 +259,12 @@ export class JobsService {
                     progress.succeeded++;
                 }
 
-            } catch (error) {
+            } catch (error: unknown) {
                 console.error(`[Jobs] Failed to invite ${candidateDto.email}:`, error);
                 if (progress) {
                     progress.details[i].status = 'error';
-                    progress.details[i].error = error.message || 'Failed to send invitation';
+                    const errorMessage = error instanceof Error ? error.message : 'Failed to send invitation';
+                    progress.details[i].error = errorMessage;
                     progress.failed++;
                 }
             }
@@ -345,14 +347,14 @@ export class JobsService {
             }
         });
 
-        // Status counts (using string comparison until prisma generate runs)
+        // Status counts
         const statusCounts = {
-            pending: job.candidates.filter((c: any) => c.status === 'PENDING').length,
-            invited: job.candidates.filter((c: any) => c.status === 'INVITED').length,
-            review: job.candidates.filter((c: any) => c.status === 'REVIEW').length,
-            rejected: job.candidates.filter((c: any) => c.status === 'REJECTED').length,
-            considered: job.candidates.filter((c: any) => c.status === 'CONSIDERED').length,
-            shortlisted: job.candidates.filter((c: any) => c.status === 'SHORTLISTED').length,
+            pending: job.candidates.filter((c) => c.status === CandidateStatus.PENDING).length,
+            invited: job.candidates.filter((c) => c.status === CandidateStatus.INVITED).length,
+            review: job.candidates.filter((c) => c.status === CandidateStatus.REVIEW).length,
+            rejected: job.candidates.filter((c) => c.status === CandidateStatus.REJECTED).length,
+            considered: job.candidates.filter((c) => c.status === CandidateStatus.CONSIDERED).length,
+            shortlisted: job.candidates.filter((c) => c.status === CandidateStatus.SHORTLISTED).length,
         };
 
         // Calculate metrics
@@ -379,7 +381,7 @@ export class JobsService {
         };
     }
 
-    async updateJob(jobId: string, userId: string, userPlan: Plan, dto: any) {
+    async updateJob(jobId: string, userId: string, userPlan: Plan, dto: UpdateJobDto) {
         const job = await this.prisma.job.findFirst({
             where: { id: jobId, companyId: userId },
         });
@@ -389,35 +391,40 @@ export class JobsService {
         }
 
         // Enforce plan restrictions on proctoring settings
-        const updateData: any = { ...dto };
+        const updateData: Prisma.JobUpdateInput = {};
 
+        if (dto.title !== undefined) updateData.title = dto.title;
+        if (dto.roleCategory !== undefined) updateData.roleCategory = dto.roleCategory;
+        if (dto.description !== undefined) updateData.description = dto.description;
+        if (dto.notes !== undefined) updateData.notes = dto.notes;
         if (dto.interviewStartTime) {
             updateData.interviewStartTime = new Date(dto.interviewStartTime);
         }
         if (dto.interviewEndTime) {
             updateData.interviewEndTime = new Date(dto.interviewEndTime);
         }
+        if (dto.tabTracking !== undefined) updateData.tabTracking = dto.tabTracking;
+        if (dto.eyeTracking !== undefined) updateData.eyeTracking = dto.eyeTracking;
+        if (dto.multiFaceDetection !== undefined) updateData.multiFaceDetection = dto.multiFaceDetection;
+        if (dto.fullScreenMode !== undefined) updateData.fullScreenMode = dto.fullScreenMode;
+        if (dto.noTextTyping !== undefined) updateData.noTextTyping = dto.noTextTyping;
+        if (dto.customQuestions !== undefined) updateData.customQuestions = dto.customQuestions;
+        if (dto.aiSpecificRequirements !== undefined) updateData.aiSpecificRequirements = dto.aiSpecificRequirements;
 
         if (userPlan === Plan.FREE) {
             updateData.eyeTracking = false;
             updateData.multiFaceDetection = false;
-            updateData.screenRecording = false;
         }
 
         if (userPlan === Plan.PRO) {
             updateData.multiFaceDetection = false;
         }
 
+        if (dto.timezone !== undefined) updateData.timezone = dto.timezone;
+
         return this.prisma.job.update({
             where: { id: jobId },
-            data: {
-                ...updateData,
-                timezone: dto.timezone || job.timezone,
-                fullScreenMode: dto.fullScreenMode !== undefined ? dto.fullScreenMode : job.fullScreenMode,
-                noTextTyping: dto.noTextTyping !== undefined ? dto.noTextTyping : job.noTextTyping,
-                customQuestions: dto.customQuestions !== undefined ? dto.customQuestions : job.customQuestions,
-                aiSpecificRequirements: dto.aiSpecificRequirements !== undefined ? dto.aiSpecificRequirements : job.aiSpecificRequirements,
-            },
+            data: updateData,
         });
     }
 
@@ -449,12 +456,44 @@ export class JobsService {
         return candidatesWithData;
     }
 
-    private mapCandidateWithSession(candidate: any, session?: any) {
+    private mapCandidateWithSession(
+        candidate: Prisma.CandidateGetPayload<Record<string, never>>,
+        session?: Prisma.InterviewSessionGetPayload<{ include: { evaluation: true } }> | undefined
+    ) {
+        // Default to candidate table status (hiring decision)
+        let status = candidate.status;
+
+        // Final statuses that should NEVER be overridden
+        const finalStatuses: CandidateStatus[] = [
+            CandidateStatus.COMPLETED,
+            CandidateStatus.REJECTED,
+            CandidateStatus.CONSIDERED,
+            CandidateStatus.SHORTLISTED,
+            CandidateStatus.EXPIRED,
+        ];
+
+        // Only override if candidate status is in-progress AND session exists
+        // Never override final statuses (hiring decisions)
+        if (session && !finalStatuses.includes(candidate.status)) {
+            // If session is ONGOING, candidate status should reflect that interview is in progress
+            // Map session status to candidate status appropriately
+            if (session.status === Status.ONGOING) {
+                // Interview is ongoing - use REVIEW to indicate interview in progress
+                status = CandidateStatus.REVIEW;
+            } else if (session.status === Status.COMPLETED) {
+                // Session completed but candidate status not yet updated - keep REVIEW
+                status = CandidateStatus.REVIEW;
+            } else if (session.status === Status.PAUSED) {
+                // Session paused - keep current candidate status
+                status = candidate.status;
+            }
+        }
+
         return {
             id: candidate.id,
             name: candidate.name,
             email: candidate.email,
-            status: session ? session.status : candidate.status,
+            status: status,
             invitedAt: candidate.invitedAt,
             createdAt: candidate.createdAt,
             interviewLink: candidate.interviewLink,
@@ -487,7 +526,28 @@ export class JobsService {
         });
     }
 
-    async updateCandidateResume(candidateId: string, resumeText: string) {
+    async updateCandidateResume(candidateId: string, resumeText: string, userId: string) {
+        // Verify the candidate belongs to a job where the user is the candidate
+        const candidate = await this.prisma.candidate.findUnique({
+            where: { id: candidateId },
+            include: {
+                job: true,
+            },
+        });
+
+        if (!candidate) {
+            throw new NotFoundException('Candidate not found');
+        }
+
+        // Verify the user is the candidate (check by email match)
+        const user = await this.prisma.user.findUnique({
+            where: { id: userId },
+        });
+
+        if (!user || user.email !== candidate.email) {
+            throw new ForbiddenException('You do not have permission to update this resume');
+        }
+
         return this.prisma.candidate.update({
             where: { id: candidateId },
             data: { resumeText },
@@ -495,7 +555,7 @@ export class JobsService {
     }
 
     async reInterviewCandidate(candidateId: string, userId: string, newScheduledTime?: string) {
-        console.log(`[Jobs] Re-interview request for candidate ID: ${candidateId} by user: ${userId}`);
+        this.logger.log(`Re-interview request for candidate ID: ${candidateId} by user: ${userId}`);
         const candidate = await this.prisma.candidate.findUnique({
             where: { id: candidateId },
             include: {
@@ -508,16 +568,16 @@ export class JobsService {
         });
 
         if (!candidate) {
-            console.warn(`[Jobs] Candidate not found: ${candidateId}`);
+            this.logger.warn(`Candidate not found: ${candidateId}`);
             throw new NotFoundException('Candidate not found');
         }
 
         if (candidate.job.companyId !== userId) {
-            console.error(`[Jobs] Unauthorized re-interview attempt by ${userId} for candidate ${candidateId}`);
+            this.logger.error(`Unauthorized re-interview attempt by ${userId} for candidate ${candidateId}`);
             throw new ForbiddenException('You do not have access to this candidate');
         }
 
-        console.log(`[Jobs] Resetting status to INVITED for ${candidate.name} (${candidate.email})`);
+        this.logger.log(`Resetting status to INVITED for ${candidate.name} (${candidate.email})`);
 
         // CRITICAL FIX: Always extend interview window for re-interviews
         // If newScheduledTime provided, use it; otherwise use current time
@@ -525,7 +585,7 @@ export class JobsService {
         const startTime = newScheduledTime ? new Date(newScheduledTime) : now;
         const endTime = new Date(startTime.getTime() + 2 * 60 * 60 * 1000); // 2 hours after start
 
-        console.log(`[Jobs] Extending interview window for candidate: Start=${startTime.toISOString()}, End=${endTime.toISOString()}`);
+        this.logger.log(`Extending interview window for candidate: Start=${startTime.toISOString()}, End=${endTime.toISOString()}`);
 
         // Reset candidate status
         await this.prisma.candidate.update({
@@ -539,7 +599,7 @@ export class JobsService {
             }
         });
 
-        console.log(`[Jobs] Deleting previous sessions for candidate email: ${candidate.email} on job: ${candidate.jobId}`);
+        this.logger.log(`Deleting previous sessions for candidate email: ${candidate.email} on job: ${candidate.jobId}`);
         // Delete previous session to allow a fresh start
         const deleteResult = await this.prisma.interviewSession.deleteMany({
             where: {
@@ -574,7 +634,7 @@ export class JobsService {
             email: candidate.email
         }, candidateUser?.id); // Pass userId if exists, otherwise null for email-anchored
 
-        console.log(`[Jobs] Deleted ${deleteResult.count} previous sessions. Re-interview reset complete. Window: ${startTime.toISOString()} to ${endTime.toISOString()}`);
+        this.logger.log(`Deleted ${deleteResult.count} previous sessions. Re-interview reset complete. Window: ${startTime.toISOString()} to ${endTime.toISOString()}`);
         return {
             ...deleteResult,
             message: 'Re-interview scheduled and notifications sent',

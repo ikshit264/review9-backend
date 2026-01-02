@@ -83,7 +83,8 @@ Requirements:
             tabTracking: true,
             eyeTracking: true,
             multiFaceDetection: true,
-            screenRecording: false,
+            // screenRecording: true,
+            fullScreenMode: false,
         },
     });
     console.log(`✅ Created job posting: ${job.title}`);

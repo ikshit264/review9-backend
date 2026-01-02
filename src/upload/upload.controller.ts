@@ -16,9 +16,10 @@ export class UploadController {
     }))
     async uploadResume(
         @UploadedFile() file: Express.Multer.File,
+        @CurrentUser('id') userId: string,
         @Query('candidateId') candidateId?: string,
     ) {
-        return this.uploadService.uploadResume(file, candidateId);
+        return this.uploadService.uploadResume(file, userId, candidateId);
     }
 
     @Get('resume/:id')

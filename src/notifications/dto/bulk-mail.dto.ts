@@ -9,7 +9,7 @@ export class BulkMailRecipient {
     name: string;
 
     @IsOptional()
-    customData?: Record<string, any>;
+    customData?: Record<string, unknown>;
 }
 
 export class BulkMailDto {

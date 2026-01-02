@@ -32,6 +32,7 @@ enum CandidateStatus {
   PENDING // Candidate added, email NOT sent
   INVITED // Email sent, awaiting interview
   REVIEW // Interview done, awaiting decision
+  COMPLETED // Interview finalized successfully
   REJECTED // Not suitable
   CONSIDERED // Under consideration
   SHORTLISTED // Top candidate
@@ -76,7 +77,6 @@ model Job {
   tabTracking        Boolean @default(true)
   eyeTracking        Boolean @default(false)
   multiFaceDetection Boolean @default(false)
-  screenRecording    Boolean @default(false)
   fullScreenMode     Boolean @default(false)
   videoRequired      Boolean @default(true)
   micRequired        Boolean @default(true)

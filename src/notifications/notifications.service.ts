@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, ForbiddenException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateNotificationDto, GetNotificationDto } from './dto/notification.dto';
+import { BulkMailDto } from './dto/bulk-mail.dto';
 import { NotificationType } from '@prisma/client';
 import { EmailService } from '../email/email.service';
 
@@ -81,15 +82,15 @@ export class NotificationsService {
         const { since, cursor, take = 20 } = query;
 
         // Build where clause
-        const where: any = {
+        const where: {
+            userId: string;
+            createdAt?: { gte: Date };
+            id?: { lt: string };
+        } = {
             userId,
-            createdAt: since ? { gte: since } : undefined
+            ...(since ? { createdAt: { gte: since } } : {}),
+            ...(cursor ? { id: { lt: cursor } } : {})
         };
-
-        // Add cursor condition if provided
-        if (cursor) {
-            where.id = { lt: cursor }; // Get notifications older than cursor
-        }
 
         const [notifications, unreadCount] = await this.prisma.$transaction([
             this.prisma.notification.findMany({
@@ -161,7 +162,7 @@ export class NotificationsService {
         return { success: true };
     }
 
-    async bulkMail(dto: any) {
+    async bulkMail(dto: import('./dto/bulk-mail.dto').BulkMailDto) {
         this.logger.log(`Starting bulk mail to ${dto.recipients.length} recipients`);
 
         const results = {
