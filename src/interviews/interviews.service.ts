@@ -29,7 +29,7 @@ export class InterviewsService {
     private geminiService: GeminiService,
     private notificationsService: NotificationsService,
     private timeWindowService: TimeWindowService,
-  ) { }
+  ) {}
 
   async getInterviewByToken(token: string) {
     this.logger.log(`Searching for candidate with token: ${token}`);
@@ -393,7 +393,11 @@ export class InterviewsService {
     return updatedSession;
   }
 
-  async resumeInterview(sessionId: string, userId: string, requesterRole?: Role) {
+  async resumeInterview(
+    sessionId: string,
+    userId: string,
+    requesterRole?: Role,
+  ) {
     const session = await this.prisma.interviewSession.findUnique({
       where: { id: sessionId },
       include: { job: true },
@@ -913,9 +917,9 @@ export class InterviewsService {
       },
       candidate: session.candidate
         ? {
-          name: session.candidate.name,
-          email: session.candidate.email,
-        }
+            name: session.candidate.name,
+            email: session.candidate.email,
+          }
         : null,
       responses: session.responses.map((r) => ({
         id: r.id,
@@ -963,10 +967,12 @@ export class InterviewsService {
       endTime: Date | null;
     };
 
-    const result: Array<typeof invitations[0] & {
-      session: SessionSelect | null;
-      currentStatus: string;
-    }> = [];
+    const result: Array<
+      (typeof invitations)[0] & {
+        session: SessionSelect | null;
+        currentStatus: string;
+      }
+    > = [];
     for (const invitation of invitations) {
       let session: SessionSelect | null = null;
       if (user) {

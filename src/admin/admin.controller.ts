@@ -9,28 +9,28 @@ import { Role } from '@prisma/client';
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(Role.ADMIN)
 export class AdminController {
-    constructor(private adminService: AdminService) { }
+  constructor(private adminService: AdminService) {}
 
-    @Get('companies')
-    async getCompanies(
-        @Query('page') page: string = '1',
-        @Query('limit') limit: string = '10'
-    ) {
-        return this.adminService.getCompanies(parseInt(page), parseInt(limit));
-    }
+  @Get('companies')
+  async getCompanies(
+    @Query('page') page: string = '1',
+    @Query('limit') limit: string = '10',
+  ) {
+    return this.adminService.getCompanies(parseInt(page), parseInt(limit));
+  }
 
-    @Post('companies/:id/approve')
-    async approveCompany(@Param('id') id: string) {
-        return this.adminService.approveCompany(id);
-    }
+  @Post('companies/:id/approve')
+  async approveCompany(@Param('id') id: string) {
+    return this.adminService.approveCompany(id);
+  }
 
-    @Post('companies/:id/reject')
-    async rejectCompany(@Param('id') id: string) {
-        return this.adminService.rejectCompany(id);
-    }
+  @Post('companies/:id/reject')
+  async rejectCompany(@Param('id') id: string) {
+    return this.adminService.rejectCompany(id);
+  }
 
-    @Get('activities')
-    async getActivities() {
-        return this.adminService.getActivities();
-    }
+  @Get('activities')
+  async getActivities() {
+    return this.adminService.getActivities();
+  }
 }

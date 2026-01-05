@@ -1,43 +1,49 @@
-import { IsString, IsArray, IsOptional, ValidateNested, IsEmail } from 'class-validator';
+import {
+  IsString,
+  IsArray,
+  IsOptional,
+  ValidateNested,
+  IsEmail,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class BulkMailRecipient {
-    @IsEmail()
-    email: string;
+  @IsEmail()
+  email: string;
 
-    @IsString()
-    name: string;
+  @IsString()
+  name: string;
 
-    @IsOptional()
-    customData?: Record<string, unknown>;
+  @IsOptional()
+  customData?: Record<string, unknown>;
 }
 
 export class BulkMailDto {
-    @IsString()
-    subject: string;
+  @IsString()
+  subject: string;
 
-    @IsString()
-    @IsOptional()
-    textContent?: string;
+  @IsString()
+  @IsOptional()
+  textContent?: string;
 
-    @IsString()
-    @IsOptional()
-    htmlContent?: string;
+  @IsString()
+  @IsOptional()
+  htmlContent?: string;
 
-    @IsArray()
-    @ValidateNested({ each: true })
-    @Type(() => BulkMailRecipient)
-    recipients: BulkMailRecipient[];
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => BulkMailRecipient)
+  recipients: BulkMailRecipient[];
 
-    @IsOptional()
-    createNotification?: boolean;
+  @IsOptional()
+  createNotification?: boolean;
 
-    @IsOptional()
-    notificationTitle?: string;
+  @IsOptional()
+  notificationTitle?: string;
 
-    @IsOptional()
-    notificationMessage?: string;
+  @IsOptional()
+  notificationMessage?: string;
 
-    @IsOptional()
-    notificationLink?: string;
+  @IsOptional()
+  notificationLink?: string;
 }

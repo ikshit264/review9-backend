@@ -5,9 +5,9 @@ import { CommonModule } from '../common/common.module';
 import { EmailModule } from '../email/email.module';
 
 @Module({
-    imports: [CommonModule, EmailModule],
-    controllers: [NotificationsController],
-    providers: [NotificationsService],
-    exports: [NotificationsService],
+  imports: [CommonModule, EmailModule],
+  controllers: [NotificationsController],
+  providers: [NotificationsService],
+  exports: [NotificationsService],
 })
-export class NotificationsModule { }
+export class NotificationsModule {}

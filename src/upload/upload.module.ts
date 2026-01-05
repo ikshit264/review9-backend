@@ -5,14 +5,14 @@ import { UploadController } from './upload.controller';
 import { UploadService } from './upload.service';
 
 @Module({
-    imports: [
-        ConfigModule,
-        MulterModule.register({
-            storage: undefined, // Use memory storage
-        }),
-    ],
-    controllers: [UploadController],
-    providers: [UploadService],
-    exports: [UploadService],
+  imports: [
+    ConfigModule,
+    MulterModule.register({
+      storage: undefined, // Use memory storage
+    }),
+  ],
+  controllers: [UploadController],
+  providers: [UploadService],
+  exports: [UploadService],
 })
-export class UploadModule { }
+export class UploadModule {}

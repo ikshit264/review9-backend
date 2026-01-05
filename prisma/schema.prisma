@@ -73,6 +73,11 @@ model User {
   jobs          Job[]
   interviews    InterviewSession[]
   notifications Notification[]
+  payments      PaymentTransaction[]
+
+  // Subscription tracking
+  subscriptionExpiresAt DateTime?
+  lastPaymentAt         DateTime?
 }
 
 model Job {
@@ -199,4 +204,46 @@ enum NotificationType {
   INAPP
   EMAIL
   SYSTEM
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  REFUNDED
+}
+
+model PaymentTransaction {
+  id                String        @id @default(uuid())
+  userId            String
+  user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan              Plan
+  amount            Float
+  currency          String        @default("USD")
+  dodoPaymentId     String?       @unique
+  dodoProductId     String
+  status            PaymentStatus @default(PENDING)
+  subscriptionStart DateTime      @default(now())
+  subscriptionEnd   DateTime
+  metadata          Json?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  @@index([userId])
+  @@index([dodoPaymentId])
+  @@index([status])
+}
+
+model PaymentWebhookLog {
+  id              String   @id @default(uuid())
+  eventType       String
+  dodoPaymentId   String?
+  payload         Json
+  processed       Boolean  @default(false)
+  processingError String?  @db.Text
+  createdAt       DateTime @default(now())
+
+  @@index([dodoPaymentId])
+  @@index([processed])
+  @@index([eventType])
 }

@@ -1,4 +1,4 @@
-import { PrismaClient, Role, Plan } from '@prisma/client';
+import { PrismaClient, Role, Plan, ApprovalStatus } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
@@ -17,9 +17,24 @@ async function main() {
     await prisma.user.deleteMany();
 
     // Hash passwords
+    const hashedAdminPassword = await bcrypt.hash('review9@gmail.com', 10);
     const hashedCompanyPassword = await bcrypt.hash('company123', 10);
     const hashedCandidate1Password = await bcrypt.hash('candidate123', 10);
     const hashedCandidate2Password = await bcrypt.hash('candidate456', 10);
+
+    // Create Admin User
+    const admin = await prisma.user.create({
+        data: {
+            email: 'review9@gmail.com',
+            password: hashedAdminPassword,
+            name: 'System Admin',
+            role: Role.ADMIN,
+            approvalStatus: ApprovalStatus.APPROVED,
+            isEmailVerified: true,
+        },
+    });
+    console.log(`✅ Created admin user: ${admin.email}`);
+
 
     // Create Company User
     const company = await prisma.user.create({
@@ -29,6 +44,8 @@ async function main() {
             name: 'Innovation Labs Inc.',
             role: Role.COMPANY,
             plan: Plan.ULTRA,
+            approvalStatus: ApprovalStatus.APPROVED,
+            isEmailVerified: true,
         },
     });
     console.log(`✅ Created company user: ${company.email}`);
@@ -40,7 +57,8 @@ async function main() {
             password: hashedCandidate1Password,
             name: 'John Doe',
             role: Role.CANDIDATE,
-            plan: Plan.FREE,
+            approvalStatus: ApprovalStatus.APPROVED,
+            isEmailVerified: true,
         },
     });
     console.log(`✅ Created candidate user: ${candidate1.email}`);
@@ -52,7 +70,8 @@ async function main() {
             password: hashedCandidate2Password,
             name: 'Jane Smith',
             role: Role.CANDIDATE,
-            plan: Plan.FREE,
+            approvalStatus: ApprovalStatus.APPROVED,
+            isEmailVerified: true,
         },
     });
     console.log(`✅ Created candidate user: ${candidate2.email}`);
@@ -146,6 +165,11 @@ Skills:
 
     console.log('\n📋 Seed Summary:');
     console.log('================');
+    console.log('🔐 Admin Account:');
+    console.log(`   Email: review9@gmail.com`);
+    console.log(`   Password: review9@gmail.com`);
+    console.log(`   Role: ADMIN`);
+    console.log('');
     console.log('👔 Company Account:');
     console.log(`   Email: company@hireai.com`);
     console.log(`   Password: company123`);
@@ -160,6 +184,7 @@ Skills:
     console.log(`   Password: candidate456`);
     console.log('');
     console.log('📝 Sample Job Created: Senior Full Stack Developer');
+    console.log('💡 All accounts are email verified and approved');
     console.log('================');
     console.log('\n🎉 Seeding completed successfully!');
 }

@@ -5,9 +5,9 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
-    imports: [PrismaModule, NotificationsModule],
-    providers: [AdminService],
-    controllers: [AdminController],
-    exports: [AdminService],
+  imports: [PrismaModule, NotificationsModule],
+  providers: [AdminService],
+  controllers: [AdminController],
+  exports: [AdminService],
 })
-export class AdminModule { }
+export class AdminModule {}

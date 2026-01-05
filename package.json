@@ -36,6 +36,7 @@
     "@nestjs/jwt": "^11.0.2",
     "@nestjs/passport": "^11.0.5",
     "@nestjs/platform-express": "^11.1.10",
+    "@nestjs/schedule": "^6.1.0",
     "@prisma/client": "^5.22.0",
     "axios": "^1.13.2",
     "bcrypt": "^6.0.0",
@@ -43,6 +44,7 @@
     "class-validator": "^0.14.3",
     "cloudinary": "^2.8.0",
     "cookie-parser": "^1.4.7",
+    "dodopayments": "^2.13.1",
     "dotenv": "^17.2.3",
     "multer": "^2.0.2",
     "nodemailer": "^7.0.12",
@@ -51,6 +53,7 @@
     "pdf-parse": "^1.1.4",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
+    "standardwebhooks": "^1.0.0",
     "uuid": "^13.0.0"
   },
   "devDependencies": {

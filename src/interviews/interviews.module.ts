@@ -6,9 +6,9 @@ import { CommonModule } from '../common/common.module';
 import { AuthModule } from '../auth/auth.module';
 
 @Module({
-    imports: [CommonModule, NotificationsModule, AuthModule],
-    controllers: [InterviewsController],
-    providers: [InterviewsService],
-    exports: [InterviewsService],
+  imports: [CommonModule, NotificationsModule, AuthModule],
+  controllers: [InterviewsController],
+  providers: [InterviewsService],
+  exports: [InterviewsService],
 })
-export class InterviewsModule { }
+export class InterviewsModule {}
