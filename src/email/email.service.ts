@@ -1,49 +1,28 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as nodemailer from 'nodemailer';
-import { Transporter } from 'nodemailer';
+import { Resend } from 'resend';
 
 @Injectable()
 export class EmailService {
-  private transporter: Transporter;
+  private resend: Resend;
   private readonly logger = new Logger(EmailService.name);
 
   constructor(private configService: ConfigService) {
-    this.initializeTransporter();
+    this.initializeResend();
   }
 
-  private initializeTransporter() {
-    const host = this.configService.get<string>('MAIL_HOST');
-    const port = Number(this.configService.get<string>('MAIL_PORT'));
-    const user = this.configService.get<string>('MAIL_USER');
-    const password = this.configService.get<string>('MAIL_PASSWORD');
+  private initializeResend() {
+    const apiKey = this.configService.get<string>('RESEND_API_KEY');
 
-    this.logger.log(`[EmailService] Initializing with Host: ${host}, Port: ${port}, User: ${user}`);
-
-    if (!host || !port || !user || !password) {
+    if (!apiKey) {
       this.logger.warn(
-        `[EmailService] SMTP configuration incomplete. Email service disabled. (Host: ${!!host}, Port: ${!!port}, User: ${!!user}, Pass: ${!!password})`,
+        '[EmailService] RESEND_API_KEY not found. Email service disabled.',
       );
       return;
     }
 
-    this.transporter = nodemailer.createTransport({
-      host,
-      port,
-      secure: port === 465, // MUST be true for port 465
-      auth: {
-        user,
-        pass: password,
-      },
-      // Port blocking fixes for Render/Cloud providers
-      connectionTimeout: 10000, // 10 seconds
-      greetingTimeout: 10000,   // 10 seconds
-      socketTimeout: 20000,     // 20 seconds
-      debug: true,              // Log SMTP traffic
-      logger: true,             // Use nodemailer built-in logger
-    });
-
-    this.logger.log('SMTP transport initialized successfully');
+    this.resend = new Resend(apiKey);
+    this.logger.log('[EmailService] Resend service initialized successfully');
   }
 
   async sendMail(
@@ -54,31 +33,35 @@ export class EmailService {
   ): Promise<boolean> {
     this.logger.log(`[EmailService] sendMail called for: ${to}`);
 
-    if (!this.transporter) {
-      this.logger.error('[EmailService] Email transport not initialized. Cannot send email.');
+    if (!this.resend) {
+      this.logger.error('[EmailService] Resend not initialized. Cannot send email.');
       return false;
     }
 
     const from =
       this.configService.get<string>('MAIL_FROM') ||
-      this.configService.get<string>('MAIL_USER');
+      'onboarding@resend.dev'; // Default Resend test email if not set
 
     try {
-      this.logger.log(`[EmailService] Sending email from ${from} to ${to}...`);
-      const info = await this.transporter.sendMail({
-        from,
-        to,
-        subject,
-        text,
+      this.logger.log(`[EmailService] Sending email via Resend to ${to}...`);
+
+      const { data, error } = await this.resend.emails.send({
+        from: from,
+        to: [to],
+        subject: subject,
+        text: text,
         html: html || text,
       });
 
-      this.logger.log(`[EmailService] Email sent successfully to ${to}. MessageId: ${info.messageId}`);
+      if (error) {
+        this.logger.error(`[EmailService] Resend Error: ${JSON.stringify(error)}`);
+        return false;
+      }
+
+      this.logger.log(`[EmailService] Email sent successfully via Resend. ID: ${data?.id}`);
       return true;
-    } catch (error) {
-      this.logger.error(`[EmailService] SMTP ERROR while sending to ${to}: ${error.message}`);
-      if (error.code) this.logger.error(`[EmailService] Error Code: ${error.code}`);
-      if (error.command) this.logger.error(`[EmailService] SMTP Command: ${error.command}`);
+    } catch (error: any) {
+      this.logger.error(`[EmailService] Unexpected Error while sending to ${to}: ${error.message}`);
       return false;
     }
   }

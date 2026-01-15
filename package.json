@@ -52,6 +52,7 @@
     "passport-jwt": "^4.0.1",
     "pdf-parse": "^1.1.4",
     "reflect-metadata": "^0.2.2",
+    "resend": "^6.7.0",
     "rxjs": "^7.8.1",
     "standardwebhooks": "^1.0.0",
     "uuid": "^13.0.0"
