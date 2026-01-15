@@ -39,7 +39,7 @@ async function main() {
     // Create Company User
     const company = await prisma.user.create({
         data: {
-            email: 'company@hireai.com',
+            email: 'company@intervai.com',
             password: hashedCompanyPassword,
             name: 'Innovation Labs Inc.',
             role: Role.COMPANY,
@@ -171,7 +171,7 @@ Skills:
     console.log(`   Role: ADMIN`);
     console.log('');
     console.log('👔 Company Account:');
-    console.log(`   Email: company@hireai.com`);
+    console.log(`   Email: company@intervai.com`);
     console.log(`   Password: company123`);
     console.log(`   Plan: ULTRA`);
     console.log('');

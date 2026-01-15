@@ -3,14 +3,14 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
 import { Plan } from '@prisma/client';
 import { SubscribeDto } from './dto';
-import { getPlanConfig, PLAN_CONFIG } from '../config/plan.config';
+import { getPlanConfig } from '../config/plan.config';
 
 @Injectable()
 export class BillingService {
   constructor(
     private prisma: PrismaService,
     private configService: ConfigService,
-  ) {}
+  ) { }
 
   async getSubscriptionStatus(userId: string) {
     const user = await this.prisma.user.findUnique({
@@ -83,38 +83,8 @@ export class BillingService {
   }
 
   async subscribe(userId: string, dto: SubscribeDto) {
-    // In production, integrate with Stripe/Razorpay here
-    // For now, just update the plan directly
-
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
-
-    if (!user) {
-      throw new BadRequestException('User not found');
-    }
-
-    // Validate plan upgrade path
-    const planOrder = { FREE: 0, PRO: 1, ULTRA: 2 };
-    if (planOrder[dto.plan] <= planOrder[user.plan || 'FREE']) {
-      throw new BadRequestException('Cannot downgrade or select same plan');
-    }
-
-    // TODO: Process payment with Stripe
-    // const stripe = new Stripe(this.configService.get('STRIPE_SECRET_KEY'));
-    // await stripe.charges.create({ ... });
-
-    // Update user plan
-    const updatedUser = await this.prisma.user.update({
-      where: { id: userId },
-      data: { plan: dto.plan },
-      select: { id: true, email: true, name: true, plan: true },
-    });
-
-    return {
-      success: true,
-      message: `Successfully upgraded to ${dto.plan}`,
-      user: updatedUser,
-      features: this.getPlanFeatures(dto.plan),
-    };
+    // DISABLED: Plan activation must go through Dodo Payments portal
+    throw new BadRequestException('All payments must be processed through the secure payment portal.');
   }
 
   private getPlanFeatures(plan: Plan): string[] {

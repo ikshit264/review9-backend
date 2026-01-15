@@ -1,6 +1,6 @@
-# HireAI Backend
+# IntervAI Backend
 
-A comprehensive NestJS backend for the HireAI AI-powered interview platform.
+A comprehensive NestJS backend for the IntervAI AI-powered interview platform.
 
 ## Features
 

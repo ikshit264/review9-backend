@@ -34,7 +34,7 @@ export class PaymentsService {
     if (!apiKey) {
       this.logger.warn(
         'DODO_PAYMENT_API_KEY is not configured. Payment features will not work. ' +
-          'Please add DODO_PAYMENT_API_KEY to your .env file to enable payments.',
+        'Please add DODO_PAYMENT_API_KEY to your .env file to enable payments.',
       );
     } else {
       this.dodoClient = new DodoPayments({
@@ -51,7 +51,7 @@ export class PaymentsService {
       } catch (error) {
         this.logger.error(
           `Failed to initialize webhook with provided secret: ${error.message}. ` +
-            'Webhook verification will be disabled. Please ensure DODO_WEBHOOK_SECRET is a valid base64-encoded string.',
+          'Webhook verification will be disabled. Please ensure DODO_WEBHOOK_SECRET is a valid base64-encoded string.',
         );
         this.logger.warn(
           'DODO_WEBHOOK_SECRET is invalid - webhook verification disabled',
@@ -66,14 +66,12 @@ export class PaymentsService {
 
   async createCheckoutSession(userId: string, plan: Plan, returnUrl?: string) {
     try {
-      // Check if Dodo Payments is configured
       if (!this.dodoClient) {
         throw new InternalServerErrorException(
           'Payment system is not configured. Please contact support or configure DODO_PAYMENT_API_KEY in the environment variables.',
         );
       }
 
-      // Get user details
       const user = await this.prisma.user.findUnique({
         where: { id: userId },
       });
@@ -82,13 +80,12 @@ export class PaymentsService {
         throw new BadRequestException('User not found');
       }
 
-      // Block payment if user already has an active paid subscription
       if (user.plan !== Plan.FREE && user.subscriptionExpiresAt) {
         const now = new Date();
         if (user.subscriptionExpiresAt > now) {
           const daysRemaining = Math.ceil(
             (user.subscriptionExpiresAt.getTime() - now.getTime()) /
-              (1000 * 60 * 60 * 24),
+            (1000 * 60 * 60 * 24),
           );
           throw new BadRequestException(
             `You already have an active ${user.plan} subscription. It will expire in ${daysRemaining} day${daysRemaining !== 1 ? 's' : ''}. Please wait until expiration to renew or upgrade.`,
@@ -96,14 +93,19 @@ export class PaymentsService {
         }
       }
 
-      // Validate plan upgrade
       if (user.plan === plan) {
         throw new BadRequestException(`You are already on the ${plan} plan`);
       }
 
+      // Block plan changes (no upgrade/downgrade)
+      if (user.plan !== Plan.FREE && user.plan !== plan) {
+        throw new BadRequestException(
+          `Upgrades and downgrades are currently disabled. You can only renew your current ${user.plan} plan.`,
+        );
+      }
+
       const planConfig = getPlanConfig(plan);
 
-      // Create checkout session with Dodo Payments
       const session = await this.dodoClient.checkoutSessions.create({
         product_cart: [
           {
@@ -115,10 +117,11 @@ export class PaymentsService {
           email: user.email,
           name: user.name,
         },
+        minimal_address: true,
         return_url:
           returnUrl ||
           `${this.configService.get('FRONTEND_URL') || 'http://localhost:3000'}/payment/success`,
-      });
+      } as any);
 
       this.logger.log(
         `Created checkout session for user ${userId}, plan ${plan}`,
@@ -142,15 +145,14 @@ export class PaymentsService {
   }
 
   async processWebhook(rawBody: string, headers: WebhookHeaders) {
+    let webhookLogId: string;
     try {
-      // Verify webhook signature
       if (this.webhook) {
         await this.webhook.verify(rawBody, headers);
       }
 
       const payload: DodoWebhookPayload = JSON.parse(rawBody);
 
-      // Log webhook event
       const webhookLog = await this.prisma.paymentWebhookLog.create({
         data: {
           eventType: payload.event_type,
@@ -159,104 +161,109 @@ export class PaymentsService {
           processed: false,
         },
       });
+      webhookLogId = webhookLog.id;
 
       this.logger.log(
         `Received webhook event: ${payload.event_type}, payment_id: ${payload.payment_id}`,
       );
 
-      // Process payment.succeeded event
       if (payload.event_type === 'payment.succeeded') {
-        await this.handlePaymentSucceeded(payload, webhookLog.id);
+        const user = await this.prisma.user.findUnique({
+          where: { email: payload.customer?.email },
+        });
+
+        if (!user) {
+          throw new Error(`User not found for email: ${payload.customer?.email}`);
+        }
+
+        const plan = this.getPlanFromProductId(payload.product_id);
+        if (!plan) {
+          throw new Error(`Unknown product_id: ${payload.product_id}`);
+        }
+
+        await this.finalizePayment(
+          user.id,
+          plan,
+          payload.payment_id,
+          payload.product_id,
+          payload.metadata,
+        );
+
+        await this.prisma.paymentWebhookLog.update({
+          where: { id: webhookLogId },
+          data: { processed: true },
+        });
       }
 
       return { received: true };
     } catch (error) {
-      this.logger.error(
-        `Webhook processing failed: ${error.message}`,
-        error.stack,
-      );
-      throw new BadRequestException('Webhook verification failed');
-    }
-  }
-
-  private async handlePaymentSucceeded(
-    payload: DodoWebhookPayload,
-    webhookLogId: string,
-  ) {
-    try {
-      // Find user by email
-      const user = await this.prisma.user.findUnique({
-        where: { email: payload.customer?.email },
-      });
-
-      if (!user) {
-        throw new Error(`User not found for email: ${payload.customer?.email}`);
-      }
-
-      // Determine plan from product_id
-      const plan = this.getPlanFromProductId(payload.product_id);
-      if (!plan) {
-        throw new Error(`Unknown product_id: ${payload.product_id}`);
-      }
-
-      const planConfig = getPlanConfig(plan);
-      const subscriptionEnd = getSubscriptionExpirationDate();
-
-      // Use transaction to ensure atomicity
-      await this.prisma.$transaction(async (tx) => {
-        // Update user plan and subscription dates
-        await tx.user.update({
-          where: { id: user.id },
-          data: {
-            plan,
-            subscriptionExpiresAt: subscriptionEnd,
-            lastPaymentAt: new Date(),
-          },
-        });
-
-        // Create payment transaction record
-        await tx.paymentTransaction.create({
-          data: {
-            userId: user.id,
-            plan,
-            amount: planConfig.price,
-            currency: planConfig.currency,
-            dodoPaymentId: payload.payment_id,
-            dodoProductId: payload.product_id,
-            status: PaymentStatus.SUCCEEDED,
-            subscriptionStart: new Date(),
-            subscriptionEnd,
-            metadata: payload.metadata || {},
-          },
-        });
-
-        // Mark webhook as processed
-        await tx.paymentWebhookLog.update({
+      if (webhookLogId) {
+        await this.prisma.paymentWebhookLog.update({
           where: { id: webhookLogId },
-          data: { processed: true },
+          data: {
+            processed: false,
+            processingError: error.message,
+          },
         });
-      });
-
-      this.logger.log(`Successfully upgraded user ${user.id} to ${plan} plan`);
-    } catch (error) {
-      // Log error in webhook log
-      await this.prisma.paymentWebhookLog.update({
-        where: { id: webhookLogId },
-        data: {
-          processed: false,
-          processingError: error.message,
-        },
-      });
+      }
 
       this.logger.error(
-        `Failed to process payment.succeeded: ${error.message}`,
+        `Failed to process payment webhook: ${error.message}`,
         error.stack,
       );
       throw error;
     }
   }
 
-  private getPlanFromProductId(productId: string): 'PRO' | 'ULTRA' | null {
+  private async finalizePayment(
+    userId: string,
+    plan: Plan,
+    dodoPaymentId: string,
+    dodoProductId: string,
+    metadata: any = {},
+  ) {
+    const planConfig = getPlanConfig(plan);
+    const subscriptionEnd = getSubscriptionExpirationDate();
+
+    await this.prisma.$transaction(async (tx) => {
+      const existing = await tx.paymentTransaction.findUnique({
+        where: { dodoPaymentId },
+      });
+
+      if (existing) {
+        this.logger.log(`Payment ${dodoPaymentId} already processed, skipping.`);
+        return;
+      }
+
+      await tx.user.update({
+        where: { id: userId },
+        data: {
+          plan,
+          subscriptionExpiresAt: subscriptionEnd,
+          lastPaymentAt: new Date(),
+        },
+      });
+
+      await tx.paymentTransaction.create({
+        data: {
+          userId,
+          plan,
+          amount: planConfig.price,
+          currency: planConfig.currency,
+          dodoPaymentId,
+          dodoProductId,
+          status: PaymentStatus.SUCCEEDED,
+          subscriptionStart: new Date(),
+          subscriptionEnd,
+          metadata: metadata || {},
+        },
+      });
+    });
+
+    this.logger.log(`Successfully finalized payment and upgraded user ${userId} to ${plan} plan`);
+  }
+
+  private getPlanFromProductId(productId: string): Plan | null {
     const proProductId = this.configService.get('DODO_PRO_PRODUCT_ID');
     const ultraProductId = this.configService.get('DODO_ULTRA_PRODUCT_ID');
 
@@ -267,8 +274,7 @@ export class PaymentsService {
 
   async verifyPayment(paymentId: string, userId: string) {
     try {
-      // Check if payment exists in our database
-      const payment = await this.prisma.paymentTransaction.findFirst({
+      let payment = await this.prisma.paymentTransaction.findFirst({
         where: {
           dodoPaymentId: paymentId,
           userId,
@@ -285,6 +291,44 @@ export class PaymentsService {
           },
         },
       });
+
+      if (!payment && this.dodoClient) {
+        this.logger.log(`Payment ${paymentId} not found in DB, fetching from Dodo Payments...`);
+        try {
+          const dodoPayment = (await this.dodoClient.payments.retrieve(paymentId)) as any;
+          this.logger.log(`Dodo Payment status: ${dodoPayment.status}`);
+
+          if (dodoPayment.status === 'succeeded') {
+            const plan = this.getPlanFromProductId(dodoPayment.product_id);
+            if (plan) {
+              await this.finalizePayment(
+                userId,
+                plan,
+                dodoPayment.payment_id,
+                dodoPayment.product_id,
+                dodoPayment.metadata,
+              );
+
+              payment = await this.prisma.paymentTransaction.findFirst({
+                where: { dodoPaymentId: paymentId, userId },
+                include: {
+                  user: {
+                    select: {
+                      id: true,
+                      email: true,
+                      name: true,
+                      plan: true,
+                      subscriptionExpiresAt: true,
+                    },
+                  },
+                },
+              }) as any;
+            }
+          }
+        } catch (dodoError) {
+          this.logger.error(`Failed to fetch payment from Dodo Payments: ${dodoError.message}`);
+        }
+      }
 
       if (!payment) {
         return {

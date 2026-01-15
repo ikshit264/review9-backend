@@ -54,7 +54,7 @@ class UpdateProfileDto {
 
 @Controller('auth')
 export class AuthController {
-  constructor(private authService: AuthService) {}
+  constructor(private authService: AuthService) { }
 
   @Post('register')
   async register(@Body() dto: RegisterDto) {
@@ -116,10 +116,6 @@ export class AuthController {
     return { message: 'Logged out successfully' };
   }
 
-  @Post('detect-timezone')
-  async detectTimezone(@Body('ip') ip?: string) {
-    return this.authService.detectTimezone(ip);
-  }
 
   @Post('verify-link')
   @HttpCode(HttpStatus.OK)

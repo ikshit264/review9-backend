@@ -99,7 +99,24 @@ model Job {
   videoRequired      Boolean @default(true)
   micRequired        Boolean @default(true)
   noTextTyping       Boolean @default(false)
-  timezone           String  @default("UTC")
+
+  // Field configuration flags
+  disableFullName     Boolean @default(true)
+  fullNameRequired    Boolean @default(false)
+  disableFirstName    Boolean @default(true)
+  firstNameRequired   Boolean @default(false)
+  disableLastName     Boolean @default(true)
+  lastNameRequired    Boolean @default(false)
+  disableCountry      Boolean @default(true)
+  countryRequired     Boolean @default(false)
+  disableAddressLine  Boolean @default(true)
+  addressLineRequired Boolean @default(false)
+  disableCity         Boolean @default(true)
+  cityRequired        Boolean @default(false)
+  disableState        Boolean @default(true)
+  stateRequired       Boolean @default(false)
+  disableZipCode      Boolean @default(true)
+  zipCodeRequired     Boolean @default(false)
 
   customQuestions        String[] @default([])
   aiSpecificRequirements String?  @db.Text
@@ -122,7 +139,17 @@ model Candidate {
   interviewStartTime DateTime?
   interviewEndTime   DateTime?
   isReInterviewed    Boolean         @default(false)
-  createdAt          DateTime        @default(now())
+
+  // New candidate fields
+  firstName   String?
+  lastName    String?
+  country     String?
+  addressLine String?
+  city        String?
+  state       String?
+  zipCode     String?
+
+  createdAt DateTime @default(now())
 
   @@unique([jobId, email])
 }
@@ -219,13 +246,13 @@ model PaymentTransaction {
   user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   plan              Plan
   amount            Float
-  currency          String        @default("USD")
+  currency          String
   dodoPaymentId     String?       @unique
-  dodoProductId     String
+  dodoProductId     String?
   status            PaymentStatus @default(PENDING)
   subscriptionStart DateTime      @default(now())
   subscriptionEnd   DateTime
-  metadata          Json?
+  metadata          Json?         @default("{}")
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
 

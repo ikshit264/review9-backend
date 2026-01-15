@@ -4,7 +4,7 @@ import { AppModule } from './app.module';
 import cookieParser from 'cookie-parser';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, { rawBody: true });
 
   app.setGlobalPrefix('api');
   app.use(cookieParser());
@@ -34,7 +34,7 @@ async function bootstrap() {
   await app.listen(Number(process.env.PORT) || 3000, '0.0.0.0'); // 🔥 REQUIRED FOR RENDER
 
   console.log(
-    `🚀 HireAI Backend running on port ${Number(process.env.PORT) || 3000}`,
+    `🚀 IntervAI Backend running on port ${Number(process.env.PORT) || 3000}`,
   );
 }
 

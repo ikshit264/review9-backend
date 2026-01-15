@@ -172,7 +172,7 @@ export class InterviewsService {
         planAtCreation: candidate.job.planAtCreation,
         companyName: candidate.job.company.name,
         companyId: candidate.job.company.id,
-        timezone: candidate.job.timezone,
+        // timezone: candidate.job.timezone,
       },
     };
   }

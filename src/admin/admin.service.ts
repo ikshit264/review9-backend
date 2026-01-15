@@ -8,7 +8,7 @@ export class AdminService {
   constructor(
     private prisma: PrismaService,
     private notificationsService: NotificationsService,
-  ) {}
+  ) { }
 
   async getCompanies(page: number = 1, limit: number = 10) {
     const skip = (page - 1) * limit;
@@ -64,13 +64,13 @@ export class AdminService {
     });
 
     // Send notification/email with verification link
-    const appUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const appUrl = process.env.APP_URL || process.env.FRONTEND_URL || 'http://localhost:3000';
     const verificationLink = `${appUrl}/verify?token=${token}`;
 
     await this.notificationsService.createForEmail(user.email, {
       type: 'EMAIL',
       title: 'Account Approved - Verify to Activate',
-      message: `Your HireAI company account has been approved. Please click the link below to verify your email and activate your account.`,
+      message: `Your IntervAI company account has been approved. Please click the link below to verify your email and activate your account.`,
       link: verificationLink,
     });
 
@@ -92,7 +92,7 @@ export class AdminService {
       type: 'EMAIL',
       title: 'Account Status Update',
       message:
-        'Your HireAI company account request has been reviewed and rejected at this time.',
+        'Your IntervAI company account request has been reviewed and rejected at this time.',
     });
 
     return { message: 'Company rejected successfully' };

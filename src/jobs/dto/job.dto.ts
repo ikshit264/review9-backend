@@ -43,9 +43,6 @@ export class CreateJobDto {
   @IsOptional()
   multiFaceDetection?: boolean;
 
-  @IsString()
-  @IsNotEmpty()
-  timezone: string;
 
   @IsBoolean()
   @IsOptional()
@@ -116,9 +113,6 @@ export class UpdateJobDto {
   @IsOptional()
   multiFaceDetection?: boolean;
 
-  @IsString()
-  @IsOptional()
-  timezone?: string;
 
   @IsBoolean()
   @IsOptional()

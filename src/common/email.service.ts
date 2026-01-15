@@ -11,10 +11,15 @@ interface InviteEmailData {
   candidateName: string;
   jobTitle: string;
   companyName: string;
+  companyDescription?: string | null;
   scheduledTime: Date;
   interviewLink: string;
+  registrationLink?: string | null;
+  needsRegistration: boolean;
   notes?: string | null;
 }
+
+import { getProfessionalEmailLayout } from './email.templates';
 
 @Injectable()
 export class EmailService {
@@ -39,55 +44,24 @@ export class EmailService {
       timeZone: 'UTC',
     }).format(data.scheduledTime);
 
-    const html = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <style>
-            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-            .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 10px 10px 0 0; }
-            .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
-            .button { display: inline-block; background: #667eea; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0; }
-            .note { background: #fff3cd; padding: 15px; border-radius: 5px; margin-top: 20px; }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="header">
-              <h1>Interview Invitation</h1>
-              <p>${data.jobTitle} at ${data.companyName}</p>
-            </div>
-            <div class="content">
-              <p>Hello ${data.candidateName},</p>
-              <p>You are invited to a remote AI-powered interview for the position of <strong>${data.jobTitle}</strong> at <strong>${data.companyName}</strong>.</p>
-              
-              <p><strong>Scheduled Time:</strong> ${formattedTime} (UTC)</p>
-              
-              <a href="${data.interviewLink}" class="button">Join Interview</a>
-              
-              <p>Please ensure you:</p>
-              <ul>
-                <li>Have a stable internet connection</li>
-                <li>Use a desktop/laptop with webcam and microphone</li>
-                <li>Are in a quiet, well-lit environment</li>
-                <li>Have your resume ready to upload</li>
-              </ul>
-              
-              ${data.notes ? `<div class="note"><strong>Note from Company:</strong><br>${data.notes}</div>` : ''}
-              
-              <p>Best of luck!</p>
-              <p>The HireAI Team</p>
-            </div>
-          </div>
-        </body>
-      </html>
-    `;
+    const html = getProfessionalEmailLayout({
+      title: 'Interview Invitation',
+      candidateName: data.candidateName,
+      message: `You have been invited to a technical assessment for the **${data.jobTitle}** position at **${data.companyName}**. This interview will be conducted by our autonomous AI assessment agent.`,
+      details: [
+        { label: 'Position', value: data.jobTitle },
+        { label: 'Company', value: data.companyName },
+        { label: 'Scheduled Time', value: `${formattedTime} (UTC)` },
+      ],
+      buttonText: data.needsRegistration ? 'Register & Join' : 'Start Interview',
+      buttonLink: data.needsRegistration ? data.registrationLink : data.interviewLink,
+      footerText: data.companyDescription ? `About ${data.companyName}: ${data.companyDescription}` : undefined
+    });
 
     const mailData = {
-      from: this.configService.get<string>('MAIL_FROM') || 'noreply@hireai.com',
+      from: this.configService.get<string>('MAIL_FROM') || 'noreply@entrext.in',
       to: data.to,
-      subject: `Interview Invite: ${data.jobTitle} at ${data.companyName}`,
+      subject: `[Interview Invitation] ${data.jobTitle} at ${data.companyName}`,
       html,
     };
 

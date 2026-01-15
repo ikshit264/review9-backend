@@ -18,8 +18,8 @@ export const PAYMENT_CONFIG = {
     PRO: {
       price: 9,
       currency: 'USD',
-      productId: process.env.DODO_PRO_PRODUCT_ID || 'pdt_0NVTaRq2HjjmZVgRubggy',
-      checkoutUrl: `https://checkout.dodopayments.com/buy/${process.env.DODO_PRO_PRODUCT_ID || 'pdt_0NVTaRq2HjjmZVgRubggy'}?quantity=1`,
+      productId: process.env.DODO_PRO_PRODUCT_ID,
+      checkoutUrl: `https://checkout.dodopayments.com/buy/${process.env.DODO_PRO_PRODUCT_ID}?quantity=1`,
       features: [
         'Interactive interviews',
         'Eye tracking',
@@ -31,9 +31,8 @@ export const PAYMENT_CONFIG = {
     ULTRA: {
       price: 27,
       currency: 'USD',
-      productId:
-        process.env.DODO_ULTRA_PRODUCT_ID || 'pdt_0NVTaZDXBzf0qEwZo2cX5',
-      checkoutUrl: `https://checkout.dodopayments.com/buy/${process.env.DODO_ULTRA_PRODUCT_ID || 'pdt_0NVTaZDXBzf0qEwZo2cX5'}?quantity=1`,
+      productId: process.env.DODO_ULTRA_PRODUCT_ID,
+      checkoutUrl: `https://checkout.dodopayments.com/buy/${process.env.DODO_ULTRA_PRODUCT_ID}?quantity=1`,
       features: [
         'All Pro features',
         'Multi-face detection',
