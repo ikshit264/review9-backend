@@ -48,11 +48,14 @@ export class NotificationsService {
     });
 
     // Send email notification if enabled
+    this.logger.log(`Notification created in DB for ${email}. Type: ${dto.type}. sendEmail flag: ${sendEmail}`);
+
     if (
       (sendEmail && dto.type === NotificationType.EMAIL) ||
       dto.type === NotificationType.SYSTEM
     ) {
-      await this.emailService.sendMail(
+      this.logger.log(`Attempting to send email to ${email} via EmailService...`);
+      const sent = await this.emailService.sendMail(
         email,
         dto.title,
         dto.message,
@@ -64,6 +67,9 @@ export class NotificationsService {
           footerText: 'You received this notification from your IntervAI account.'
         }),
       );
+      this.logger.log(`EmailService.sendMail returned: ${sent}`);
+    } else {
+      this.logger.warn(`Email sending skipped. Condition not met: type=${dto.type}, sendEmail=${sendEmail}`);
     }
 
     return notification;

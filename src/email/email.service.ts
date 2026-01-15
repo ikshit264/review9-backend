@@ -44,8 +44,10 @@ export class EmailService {
     text: string,
     html?: string,
   ): Promise<boolean> {
+    this.logger.log(`[EmailService] sendMail called for: ${to}`);
+
     if (!this.transporter) {
-      this.logger.error('Email transport not initialized. Cannot send email.');
+      this.logger.error('[EmailService] Email transport not initialized. Cannot send email.');
       return false;
     }
 
@@ -54,6 +56,7 @@ export class EmailService {
       this.configService.get<string>('MAIL_USER');
 
     try {
+      this.logger.log(`[EmailService] Sending email from ${from} to ${to}...`);
       const info = await this.transporter.sendMail({
         from,
         to,
@@ -62,10 +65,12 @@ export class EmailService {
         html: html || text,
       });
 
-      this.logger.log(`Email sent successfully to ${to}: ${info.messageId}`);
+      this.logger.log(`[EmailService] Email sent successfully to ${to}. MessageId: ${info.messageId}`);
       return true;
     } catch (error) {
-      this.logger.error(`Failed to send email to ${to}:`, error.message);
+      this.logger.error(`[EmailService] SMTP ERROR while sending to ${to}: ${error.message}`);
+      if (error.code) this.logger.error(`[EmailService] Error Code: ${error.code}`);
+      if (error.command) this.logger.error(`[EmailService] SMTP Command: ${error.command}`);
       return false;
     }
   }
