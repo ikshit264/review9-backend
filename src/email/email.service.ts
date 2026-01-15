@@ -14,13 +14,15 @@ export class EmailService {
 
   private initializeTransporter() {
     const host = this.configService.get<string>('MAIL_HOST');
-    const port = this.configService.get<number>('MAIL_PORT');
+    const port = Number(this.configService.get<string>('MAIL_PORT'));
     const user = this.configService.get<string>('MAIL_USER');
     const password = this.configService.get<string>('MAIL_PASSWORD');
 
+    this.logger.log(`[EmailService] Initializing with Host: ${host}, Port: ${port}, User: ${user}`);
+
     if (!host || !port || !user || !password) {
       this.logger.warn(
-        'SMTP configuration incomplete. Email service disabled.',
+        `[EmailService] SMTP configuration incomplete. Email service disabled. (Host: ${!!host}, Port: ${!!port}, User: ${!!user}, Pass: ${!!password})`,
       );
       return;
     }
@@ -28,11 +30,17 @@ export class EmailService {
     this.transporter = nodemailer.createTransport({
       host,
       port,
-      secure: port === 465,
+      secure: port === 465, // MUST be true for port 465
       auth: {
         user,
         pass: password,
       },
+      // Port blocking fixes for Render/Cloud providers
+      connectionTimeout: 10000, // 10 seconds
+      greetingTimeout: 10000,   // 10 seconds
+      socketTimeout: 20000,     // 20 seconds
+      debug: true,              // Log SMTP traffic
+      logger: true,             // Use nodemailer built-in logger
     });
 
     this.logger.log('SMTP transport initialized successfully');
