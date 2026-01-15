@@ -15,6 +15,7 @@ import { AdminModule } from './admin/admin.module';
 import { APP_INTERCEPTOR, APP_FILTER } from '@nestjs/core';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+import { AppController } from './app.controller';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
     NotificationsModule,
     AdminModule,
   ],
+  controllers: [AppController],
   providers: [
     {
       provide: APP_INTERCEPTOR,
@@ -49,4 +51,4 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
     },
   ],
 })
-export class AppModule {}
+export class AppModule { }
