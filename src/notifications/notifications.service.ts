@@ -12,7 +12,10 @@ import {
 import { BulkMailDto } from './dto/bulk-mail.dto';
 import { NotificationType } from '@prisma/client';
 import { EmailService } from '../email/email.service';
-import { getProfessionalEmailLayout } from '../common/email.templates';
+import {
+  getProfessionalEmailLayout,
+  getScheduleUpdateEmailLayout,
+} from '../common/email.templates';
 
 @Injectable()
 export class NotificationsService {
@@ -62,9 +65,13 @@ export class NotificationsService {
         getProfessionalEmailLayout({
           title: dto.title,
           message: dto.message,
-          buttonText: dto.link ? 'View Details' : undefined,
+          buttonText: dto.link
+            ? dto.title.toLowerCase().includes('verify')
+              ? 'Verify Email'
+              : 'View Details'
+            : undefined,
           buttonLink: dto.link,
-          footerText: 'You received this notification from your IntervAI account.'
+          footerText: 'You received this notification from your IntervAI account.',
         }),
       );
       this.logger.log(`EmailService.sendMail returned: ${sent}`);
@@ -349,6 +356,70 @@ The IntervAI Team
         message: error.message || 'Failed to send test email',
         email,
       };
+    }
+  }
+
+  async sendScheduleUpdateBulkMail(jobId: string, companyName: string) {
+    const job = await this.prisma.job.findUnique({
+      where: { id: jobId },
+      include: { candidates: true },
+    });
+
+    if (!job) {
+      this.logger.error(`[NotificationsService] Job not found for bulk mail: ${jobId}`);
+      return;
+    }
+
+    this.logger.log(`[NotificationsService] Sending schedule update bulk mail for job: ${job.title} to ${job.candidates.length} candidates`);
+
+    const appUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+
+    for (const candidate of job.candidates) {
+      if (candidate.status === 'REJECTED' || candidate.status === 'COMPLETED') continue;
+
+      const interviewLink = `${appUrl}/interview/${candidate.interviewLink}`;
+
+      const htmlContent = getScheduleUpdateEmailLayout({
+        title: 'Interview Schedule Updated',
+        message: `The interview schedule for <strong>${job.title}</strong> at <strong>${companyName}</strong> has been updated.`,
+        details: [
+          { label: 'Position', value: job.title },
+          { label: 'Company', value: companyName },
+          { label: 'Start Time (UTC)', value: job.interviewStartTime.toLocaleString('en-US', { timeZone: 'UTC', dateStyle: 'long', timeStyle: 'short' }) + ' UTC' },
+          { label: 'End Time (UTC)', value: job.interviewEndTime.toLocaleString('en-US', { timeZone: 'UTC', dateStyle: 'long', timeStyle: 'short' }) + ' UTC' }
+        ],
+        buttonText: 'Verify Updated Schedule',
+        buttonLink: interviewLink,
+        candidateName: candidate.name,
+      });
+
+      const textContent = `
+Your interview schedule for ${job.title} at ${companyName} has been updated.
+
+Updated Schedule (UTC):
+Start: ${job.interviewStartTime.toLocaleString('en-US', { timeZone: 'UTC' })} UTC
+End: ${job.interviewEndTime.toLocaleString('en-US', { timeZone: 'UTC' })} UTC
+
+Access your interview environment here:
+${interviewLink}
+
+Timings are in UTC.
+      `;
+
+      await this.emailService.sendMail(
+        candidate.email,
+        `📅 Updated Schedule: ${job.title} at ${companyName}`,
+        textContent,
+        htmlContent,
+      );
+
+      // Also create an in-app notification
+      await this.createForEmail(candidate.email, {
+        type: NotificationType.EMAIL,
+        title: 'Interview Schedule Updated',
+        message: `Your interview for ${job.title} has a new schedule. Please check your email for details.`,
+        link: `/interview/${candidate.interviewLink}`
+      }, false);
     }
   }
 }

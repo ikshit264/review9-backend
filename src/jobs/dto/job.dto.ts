@@ -130,6 +130,10 @@ export class UpdateJobDto {
   @IsString()
   @IsOptional()
   aiSpecificRequirements?: string;
+
+  @IsBoolean()
+  @IsOptional()
+  notifyCandidates?: boolean;
 }
 
 export class UpdateCandidateStatusDto {

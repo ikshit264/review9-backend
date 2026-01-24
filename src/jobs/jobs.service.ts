@@ -417,10 +417,26 @@ export class JobsService {
       updatedData.interviewEndTime = this.parseUtcDate(dto.interviewEndTime);
     }
 
-    return this.prisma.job.update({
+    const updatedJob = await this.prisma.job.update({
       where: { id: jobId },
       data: updatedData,
+      include: { company: true },
     });
+
+    // Send bulk mail if schedule changed and requested
+    if (dto.notifyCandidates && (dto.interviewStartTime || dto.interviewEndTime)) {
+      this.logger.log(`[JobsService] Triggering schedule update bulk mail for job: ${jobId}`);
+      // Don't await, let it run in background
+      this.notificationsService
+        .sendScheduleUpdateBulkMail(jobId, updatedJob.company.name)
+        .catch((err) =>
+          this.logger.error(
+            `[JobsService] Failed to send schedule update bulk mail: ${err.message}`,
+          ),
+        );
+    }
+
+    return updatedJob;
   }
 
   async deleteJob(jobId: string, userId: string, requesterRole?: Role) {
@@ -526,7 +542,7 @@ export class JobsService {
     });
 
     if (!candidate) throw new NotFoundException('Candidate not found');
-    
+
     return this.prisma.candidate.update({
       where: { id: candidateId },
       data: { resumeText },
