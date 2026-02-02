@@ -20,7 +20,7 @@ A comprehensive NestJS backend for the IntervAI AI-powered interview platform.
 - **Database:** PostgreSQL with Prisma ORM
 - **Authentication:** JWT + Passport
 - **AI:** Google Gemini API
-- **Email:** Nodemailer (SendGrid compatible)
+- **Email:** Resend API
 
 ## Prerequisites
 
@@ -61,11 +61,10 @@ A comprehensive NestJS backend for the IntervAI AI-powered interview platform.
 | `JWT_EXPIRATION` | Token expiration (default: 7d) | ❌ |
 | `APP_URL` | Frontend URL for email links | ✅ |
 | `PORT` | Server port (default: 3001) | ❌ |
-| `MAIL_HOST` | SMTP host | ✅ |
-| `MAIL_PORT` | SMTP port | ✅ |
-| `MAIL_USER` | SMTP username | ✅ |
-| `MAIL_PASSWORD` | SMTP password | ✅ |
-| `MAIL_FROM` | From email address | ✅ |
+| `RESEND_API_KEY` | Resend API key for email delivery | ✅ |
+| `MAIL_FROM` | From email address (must be verified in Resend) | ✅ |
+| `MAIL_FROM_NAME` | From name for emails (default: IntervAI) | ❌ |
+| `MAIL_ENABLED` | Enable/disable email sending (default: true) | ❌ |
 | `GEMINI_API_KEY` | Google Gemini API key | ✅ |
 | `STRIPE_SECRET_KEY` | Stripe API key (optional) | ❌ |
 

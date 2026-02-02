@@ -4,7 +4,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 
 interface InviteEmailData {
   to: string;
@@ -24,17 +24,24 @@ import { getProfessionalEmailLayout } from './email.templates';
 @Injectable()
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
-  private transporter: nodemailer.Transporter;
+  private resend: Resend | null = null;
 
   constructor(private configService: ConfigService) {
-    this.transporter = nodemailer.createTransport({
-      host: this.configService.get<string>('MAIL_HOST') || 'smtp.sendgrid.net',
-      port: this.configService.get<number>('MAIL_PORT') || 587,
-      auth: {
-        user: this.configService.get<string>('MAIL_USER') || '',
-        pass: this.configService.get<string>('MAIL_PASSWORD') || '',
-      },
-    });
+    this.initializeResend();
+  }
+
+  private initializeResend() {
+    const apiKey = this.configService.get<string>('RESEND_API_KEY');
+
+    if (!apiKey) {
+      this.logger.warn(
+        '[CommonEmailService] RESEND_API_KEY not found. Email service disabled.',
+      );
+      return;
+    }
+
+    this.resend = new Resend(apiKey);
+    this.logger.log('[CommonEmailService] Resend service initialized successfully');
   }
 
   async sendInterviewInvite(data: InviteEmailData): Promise<void> {
@@ -58,12 +65,9 @@ export class EmailService {
       footerText: data.companyDescription ? `About ${data.companyName}: ${data.companyDescription}` : undefined
     });
 
-    const mailData = {
-      from: this.configService.get<string>('MAIL_FROM') || 'noreply@entrext.in',
-      to: data.to,
-      subject: `[Interview Invitation] ${data.jobTitle} at ${data.companyName}`,
-      html,
-    };
+    const fromEmail = this.configService.get<string>('MAIL_FROM') || 'onboarding@resend.dev';
+    const fromName = this.configService.get<string>('MAIL_FROM_NAME') || 'IntervAI';
+    const subject = `[Interview Invitation] ${data.jobTitle} at ${data.companyName}`;
 
     this.logger.log(
       `Preparing to send interview invitation email to ${data.to}`,
@@ -80,9 +84,31 @@ export class EmailService {
         return;
       }
 
-      await this.transporter.sendMail(mailData);
+      if (!this.resend) {
+        this.logger.error('[CommonEmailService] Resend not initialized. Cannot send email.');
+        throw new InternalServerErrorException(
+          'Email service not configured properly.',
+        );
+      }
+
+      const { data: resendData, error } = await this.resend.emails.send({
+        from: `${fromName} <${fromEmail}>`,
+        to: [data.to],
+        subject: subject,
+        html: html,
+      });
+
+      if (error) {
+        this.logger.error(
+          `Failed to send interview invitation email to ${data.to}: ${error.message}`,
+        );
+        throw new InternalServerErrorException(
+          `Failed to send interview invitation email to ${data.to}. Error: ${error.message}`,
+        );
+      }
+
       this.logger.log(
-        `Successfully sent interview invitation email to ${data.to}`,
+        `Successfully sent interview invitation email to ${data.to}. Message ID: ${resendData?.id}`,
       );
     } catch (error: unknown) {
       const errorMessage =
@@ -96,9 +122,9 @@ export class EmailService {
       if (
         error &&
         typeof error === 'object' &&
-        'response' in error &&
-        typeof error.response === 'string' &&
-        error.response.includes('Maximum credits exceeded')
+        'message' in error &&
+        typeof error.message === 'string' &&
+        error.message.includes('quota')
       ) {
         throw new InternalServerErrorException(
           `Email service quota exceeded. Failed to send invitation to ${data.to}. Please contact support.`,

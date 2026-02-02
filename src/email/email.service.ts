@@ -1,32 +1,28 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as SibApiV3Sdk from 'sib-api-v3-sdk';
+import { Resend } from 'resend';
 
 @Injectable()
 export class EmailService {
-  private apiInstance: SibApiV3Sdk.TransactionalEmailsApi;
+  private resend: Resend | null = null;
   private readonly logger = new Logger(EmailService.name);
 
   constructor(private configService: ConfigService) {
-    this.initializeBrevo();
+    this.initializeResend();
   }
 
-  private initializeBrevo() {
-    const apiKey = this.configService.get<string>('BREVO_API_KEY');
+  private initializeResend() {
+    const apiKey = this.configService.get<string>('RESEND_API_KEY');
 
     if (!apiKey) {
       this.logger.warn(
-        '[EmailService] BREVO_API_KEY not found. Email service disabled.',
+        '[EmailService] RESEND_API_KEY not found. Email service disabled.',
       );
       return;
     }
 
-    const defaultClient = SibApiV3Sdk.ApiClient.instance;
-    const apiKeyAuth = defaultClient.authentications['api-key'];
-    apiKeyAuth.apiKey = apiKey;
-
-    this.apiInstance = new SibApiV3Sdk.TransactionalEmailsApi();
-    this.logger.log('[EmailService] Brevo service initialized successfully');
+    this.resend = new Resend(apiKey);
+    this.logger.log('[EmailService] Resend service initialized successfully');
   }
 
   async sendMail(
@@ -37,8 +33,8 @@ export class EmailService {
   ): Promise<boolean> {
     this.logger.log(`[EmailService] sendMail called for: ${to}`);
 
-    if (!this.apiInstance) {
-      this.logger.error('[EmailService] Brevo not initialized. Cannot send email.');
+    if (!this.resend) {
+      this.logger.error('[EmailService] Resend not initialized. Cannot send email.');
       return false;
     }
 
@@ -46,24 +42,24 @@ export class EmailService {
     const fromName = this.configService.get<string>('MAIL_FROM_NAME') || 'IntervAI';
 
     try {
-      this.logger.log(`[EmailService] Sending email via Brevo to ${to}...`);
+      this.logger.log(`[EmailService] Sending email via Resend to ${to}...`);
 
-      const sendSmtpEmail = new SibApiV3Sdk.SendSmtpEmail();
-      sendSmtpEmail.subject = subject;
-      sendSmtpEmail.htmlContent = html || text;
-      sendSmtpEmail.textContent = text;
-      sendSmtpEmail.sender = { name: fromName, email: fromEmail };
-      sendSmtpEmail.to = [{ email: to }];
+      const { data, error } = await this.resend.emails.send({
+        from: `${fromName} <${fromEmail}>`,
+        to: [to],
+        subject: subject,
+        html: html || `<p>${text}</p>`,
+      });
 
-      const data = await this.apiInstance.sendTransacEmail(sendSmtpEmail);
+      if (error) {
+        this.logger.error(`[EmailService] Resend Error while sending to ${to}: ${error.message}`);
+        return false;
+      }
 
-      this.logger.log(`[EmailService] Email sent successfully via Brevo. Message ID: ${data.messageId}`);
+      this.logger.log(`[EmailService] Email sent successfully via Resend. Message ID: ${data?.id}`);
       return true;
     } catch (error: any) {
-      this.logger.error(`[EmailService] Brevo Error while sending to ${to}: ${error.message || error}`);
-      if (error.response && error.response.body) {
-        this.logger.error(`[EmailService] Brevo Error details: ${JSON.stringify(error.response.body)}`);
-      }
+      this.logger.error(`[EmailService] Resend Error while sending to ${to}: ${error.message || error}`);
       return false;
     }
   }
